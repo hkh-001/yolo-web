@@ -1,0 +1,19 @@
+---
+import RootLayout, { type Props as RootProps } from "@/layouts/Layout.astro";
+import config from "@/config";
+
+const pageTitle = config.web.name;
+
+const headerNav = [
+    { href: "/", text: "主页" },
+    { href: "/predict", text: "识别" },
+    { href: "/train", text: "训练" },
+    { href: "/history", text: "历史记录" }
+] as const;
+
+export type Props = Omit<RootProps, "pageTitle" | "brand" | "headerNav">;
+---
+
+<RootLayout pageTitle={pageTitle} brand={pageTitle} headerNav={headerNav} {...Astro.props}>
+    <slot />
+</RootLayout>

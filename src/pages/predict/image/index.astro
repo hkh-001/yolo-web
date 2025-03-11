@@ -1,7 +1,11 @@
 ---
 import Layout from "../_layout.astro";
+import SourceForm from "../_blocks/SourceForm.vue";
 ---
 
 <Layout active="./image">
-    <button data-ref="a">a</button>
+    <div class="mb-4 text-right">
+        <span class="text-2xl font-bold">图像识别</span>
+    </div>
+    <SourceForm source="image" client:load />
 </Layout>

@@ -1,5 +1,6 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import toml from 'toml';
 
 import vue from '@astrojs/vue';
 import react from '@astrojs/react';
@@ -12,7 +13,26 @@ import ElementPlus from 'unplugin-element-plus/vite'
 export default defineConfig({
   integrations: [vue(), react()],
   vite: {
-    plugins: [tailwindcss(), ElementPlus({})],
+    plugins: [tailwindcss(), ElementPlus({}), {
+      name: "toml-loader",
+      transform(code, id) {
+        if (id.endsWith('.toml')) {
+          return `export default ${JSON.stringify(toml.parse(code))}`
+        }
+      }
+    }],
+    server: {
+      watch: {
+        ignored: ['server/**/*']
+      },
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, '')
+        }
+      }
+    },
     ssr: {
       noExternal: ['element-plus']
     }

@@ -19,7 +19,7 @@ const { nav, active, ...rest } = Astro.props as Props;
 >
     {
         nav.map(({ href, text }) => (
-            <Link align="left" class="w-full my-2" href={href} active={active === href} target="_self">
+            <Link align="left" class="w-full my-2 pr-0 !box-border" href={href} active={active === href} target="_self">
                 {text}
             </Link>
         ))

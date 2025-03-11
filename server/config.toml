@@ -1,0 +1,5 @@
+[[models]]
+id = "yolov5n"
+name = "Yolo V5-n"
+api_url = "http://localhost:5000/model/yolov5n"
+api_key = "sk-1234567890"

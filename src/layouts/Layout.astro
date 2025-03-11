@@ -1,22 +1,18 @@
 ---
 import "@/styles/global.css";
 import "@/styles/theme.scss";
-import "@/styles/index.scss";
 
 import LayoutBody from "./_blocks/LayoutBody.vue";
-import Header from "@/widgets/Header.astro";
+import Header, { type Props as HeaderProps } from "@/widgets/Header.astro";
 import Aside from "@/widgets/Aside.astro";
 
-const pageTitle = "Yolo Web";
-
-const headerNav = [
-    { href: "/", text: "主页" },
-    { href: "/predict", text: "识别" },
-    { href: "/train", text: "训练" },
-    { href: "/history", text: "历史记录" }
-] as const;
-
 export interface Props {
+    pageTitle: string;
+    brand?: HeaderProps["brand"];
+    headerNav: readonly {
+        href: string;
+        text: string;
+    }[];
     headerActive?: (typeof headerNav)[number]["href"];
     asideNav: readonly {
         href: string;
@@ -25,7 +21,7 @@ export interface Props {
     asideActive?: (typeof Astro.props.asideNav)[number]["href"];
 }
 
-const { headerActive, asideNav, asideActive, ...rest } = Astro.props as Props;
+const { pageTitle, brand, headerNav, headerActive, asideNav, asideActive, ...rest } = Astro.props as Props;
 ---
 
 <!doctype html>
@@ -35,13 +31,19 @@ const { headerActive, asideNav, asideActive, ...rest } = Astro.props as Props;
         <meta name="viewport" content="width=device-width" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <meta name="generator" content={Astro.generator} />
-        <title>Yolo Web</title>
+        <title>{pageTitle}</title>
     </head>
     <body>
         <LayoutBody>
-            <Header slot="header" brand={pageTitle} nav={headerNav} active={headerActive} />
+            <Header slot="header" brand={brand ?? pageTitle} nav={headerNav} active={headerActive} />
             <Aside slot="aside" nav={asideNav} active={asideActive} />
             <slot slot="main" {...rest} />
         </LayoutBody>
     </body>
 </html>
+
+<style lang="scss">
+    body {
+        background-color: var(--bg-color);
+    }
+</style>

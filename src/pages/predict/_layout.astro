@@ -1,5 +1,5 @@
 ---
-import RootLayout from "@/layouts/Layout.astro";
+import ParentLayout from "../_layout.astro";
 
 const asideNav = [
     { href: "./image", text: "图像识别" },
@@ -13,6 +13,6 @@ export interface Props {
 const { active } = Astro.props as Props;
 ---
 
-<RootLayout headerActive="/predict" asideNav={asideNav} asideActive={active}>
+<ParentLayout headerActive="/predict" asideNav={asideNav} asideActive={active}>
     <slot />
-</RootLayout>
+</ParentLayout>

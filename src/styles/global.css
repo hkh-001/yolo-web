@@ -9,10 +9,13 @@ body {
 }
 
 @theme {
+    --bg-color: var(--el-bg-color);
     --border-color: var(--el-border-color);
     --brand-color: var(--el-color-primary);
     --text-color: var(--el-text-color-primary);
-    --font-family-base: Inter, Helvetica Neue, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, 微软雅黑, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", Arial;
+    --font-family-base: Inter, Helvetica Neue, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, 微软雅黑,
+        ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+        "Noto Color Emoji", Arial;
     --font-family-mono: ui-monospace, "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
 }
 

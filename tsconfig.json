@@ -17,7 +17,8 @@
   },
   "include": [
     ".astro/types.d.ts",
-    "**/*"
+    "global.d.ts",
+    "./src/**/*"
   ],
   "exclude": [
     "dist"
