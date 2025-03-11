@@ -1,0 +1,18 @@
+---
+import RootLayout from "@/layouts/Layout.astro";
+
+const asideNav = [
+    { href: "./image", text: "图像识别" },
+    { href: "./video", text: "视频识别" }
+] as const;
+
+export interface Props {
+    active?: (typeof asideNav)[number]["href"];
+}
+
+const { active } = Astro.props as Props;
+---
+
+<RootLayout headerActive="/predict" asideNav={asideNav} asideActive={active}>
+    <slot />
+</RootLayout>

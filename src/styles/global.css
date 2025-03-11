@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+html,
+body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    font-family: var(--font-family-base);
+}
+
+@theme {
+    --border-color: var(--el-border-color);
+    --brand-color: var(--el-color-primary);
+    --text-color: var(--el-text-color-primary);
+    --font-family-base: Inter, Helvetica Neue, Helvetica, PingFang SC, Hiragino Sans GB, Microsoft YaHei, 微软雅黑, ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji", Arial;
+    --font-family-mono: ui-monospace, "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", monospace;
+}
+
+/* https://tailwindcss.com/docs/upgrade-guide#hover-styles-on-mobile */
+@custom-variant hover (&:hover);
+
+@theme {
+    --color-primary: var(--el-color-primary);
+    --color-success: var(--el-color-success);
+    --clor-warning: var(--el-color-warning);
+    --color-danger: var(--el-color-danger);
+    --color-info: var(--el-color-info);
+}

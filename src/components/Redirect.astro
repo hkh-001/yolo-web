@@ -1,0 +1,16 @@
+---
+// import url from "node:url";
+
+export interface Props {
+    to: string;
+}
+
+const { to } = Astro.props;
+
+// const importPath = url.resolve(new URL(Astro.request.url).pathname, to);
+// const glob: Record<string, { default: any }> = import.meta.glob("@/pages/**/index.astro", { eager: true });
+// const Component = glob[`/src/pages${importPath}/index.astro`].default;
+---
+
+<meta http-equiv="refresh" content={`0;url=${to}`} />
+<!-- <Component /> -->

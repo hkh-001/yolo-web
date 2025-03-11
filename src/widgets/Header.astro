@@ -1,0 +1,30 @@
+---
+import Link from "@/components/Link.astro";
+import type { HTMLAttributes } from "astro/types";
+import type { Component } from "react";
+
+export interface Props extends HTMLAttributes<"div"> {
+    brand?: string | Component | ((_props: any) => any);
+    nav: readonly {
+        href: string;
+        text: string;
+    }[];
+    active?: (typeof Astro.props.nav)[number]["href"];
+}
+
+const { brand, nav, active, ...rest } = Astro.props as Props;
+---
+
+<div class="relative !h-min">
+    <div class="absolute bottom-0 w-full h-[1px] bg-(--border-color)"></div>
+    <div class:list={"relative flex justify-end items-center box-border pl-6 pr-24"} {...rest}>
+        <div class="flex-1 text-[1.2em] font-bold">{brand}</div>
+        {
+            nav.map(({ href, text }) => (
+                <Link align="bottom" class="!py-4" href={href} active={active === href} target="_self">
+                    {text}
+                </Link>
+            ))
+        }
+    </div>
+</div>

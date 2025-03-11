@@ -1,0 +1,26 @@
+---
+import type { HTMLAttributes } from "astro/types";
+
+export interface Props extends HTMLAttributes<"a"> {
+    align: "bottom" | "left";
+    active?: boolean;
+    href?: string;
+    nowrap?: boolean;
+}
+
+const { align: type, active, href, nowrap, ...rest } = Astro.props as Props;
+---
+
+<a
+    class:list={[
+        "px-4 py-2 block box-content",
+        nowrap && "text-nowrap whitespace-nowrap",
+        "text-(--text-color) hover:text-(--brand-color)",
+        "border-solid border-transparent transition-colors cursor-pointer",
+        type === "bottom" ? "border-b-3" : "border-l-3",
+        active ? "!border-(--brand-color)" : "",
+        Astro.props.class
+    ]}
+    href={href}
+    {...rest}><slot /></a
+>

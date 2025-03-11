@@ -1,0 +1,27 @@
+---
+import Link from "@/components/Link.astro";
+import type { HTMLAttributes } from "astro/types";
+
+export interface Props extends HTMLAttributes<"div"> {
+    nav: readonly {
+        href: string;
+        text: string;
+    }[];
+    active?: (typeof nav)[number]["href"];
+}
+
+const { nav, active, ...rest } = Astro.props as Props;
+---
+
+<div
+    class:list={["px-4 py-4 h-full box-border relative", "border-r-[1px] border-solid border-(--border-color)"]}
+    {...rest}
+>
+    {
+        nav.map(({ href, text }) => (
+            <Link align="left" class="w-full my-2" href={href} active={active === href} target="_self">
+                {text}
+            </Link>
+        ))
+    }
+</div>
