@@ -5,6 +5,7 @@
     "dev": "nodemon --exec bun run src/index.ts"
   },
   "devDependencies": {
+    "@types/bun": "^1.2.5",
     "@types/node": "^22.13.10",
     "nodemon": "^3.1.9"
   },
