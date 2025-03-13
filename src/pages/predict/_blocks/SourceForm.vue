@@ -1,22 +1,24 @@
 <script lang="ts" setup>
 import {
-    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElInputTag, ElButton, ElRadioGroup, ElRadio,
-    type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId
+    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElInputTag, ElButton, ElRadioGroup, ElRadio, ElInput,
+    type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
+    ElPopconfirm
 } from 'element-plus';
-import { Delete, UploadFilled } from '@element-plus/icons-vue';
-import { defaultsPredictData, type ImageResponse, type PredictData } from '@/utils/api/predict';
+import { Delete, FolderAdd, Refresh, UploadFilled } from '@element-plus/icons-vue';
+import { defaultsPredictData, type ImageResponse, type VideoResponse, type PredictData, type SavedPredictData } from '@/utils/api/predict';
 import * as api from "@/utils/api"
+import type { ModelInfo } from '@/utils/api';
+import type { Task } from '@/utils/api/task';
 import { Message } from '@/utils/message';
+import { setURLParams } from '@/utils/url';
 
-import { computed, provide, reactive, ref } from 'vue'
-import { ID_INJECTION_KEY } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { preventElemmentSSRError } from '@/utils/ssr';
 
-provide(ID_INJECTION_KEY, {
-    prefix: 100,
-    current: 0,
-})
+preventElemmentSSRError()
 
 const props = defineProps<{
+    title: string;
     source: PredictData["source"];
 }>();
 
@@ -27,44 +29,131 @@ const resultCanvas = ref<HTMLCanvasElement | null>(null);
 const originalVideo = ref<HTMLVideoElement | null>(null);
 const resultVideo = ref<HTMLVideoElement | null>(null);
 
+const queryTaskName = ref<string>("");
+const submitTaskName = ref<string>("");
 const modelId = ref<string>("");
 const form: Omit<typeof defaultsPredictData, "file"> = reactive(Object.assign({}, defaultsPredictData));
 const submitLoading = ref(false);
+const saveLoading = ref(false);
 const showOriginal = ref(false);
-const results = ref<ImageResponse | null>(null);
-const resultsBlob = ref<Blob | null>(null);
-const hasResults = computed(() => results.value !== null || resultsBlob.value !== null);
+const originalBlob = ref<Blob | null>(null);
+const resultData = ref<ImageResponse | VideoResponse | null>(null);
+const resultBlob = ref<Blob | null>(null);
+const hasResult = computed(() => resultData.value !== null || resultBlob.value !== null);
 
-const models = await api.getModels().then((models) => {
-    if (models.length > 0) modelId.value = models[0].id
-    return models
-}).catch((e: Error) => {
-    Message.error(`获取模型列表失败：${e.name}`)
-    console.error(e)
-})
+const models = ref<ModelInfo[]>([]);
+
 
 const acceptOptions = {
     image: [{
         name: "图像输出",
+        id: "blob",
         value: "image/jpeg,image/png"
     }, {
         name: "前端数据渲染",
+        id: "data",
         value: "application/json"
     }],
     video: [{
         name: "视频输出",
+        id: "blob",
         value: "video/mp4"
     }, {
         name: "前端数据渲染",
+        id: "data",
         value: "application/json"
     }]
 }
 
 const accept = ref<string>(props.source === "image" ? "application/json" : "video/mp4");
 
+function updateModels() {
+    api.getModels().then((m) => {
+        if (m.length > 0) modelId.value = m[0].id
+        models.value = m
+    }).catch((e: Error) => {
+        Message.error(`获取模型列表失败：${e.name}`)
+        console.error(e)
+    })
+}
+
+async function loadFromTaskQuery() {
+    const task_id = new URLSearchParams(window.location.search).get("task")
+    if (task_id === null) return;
+    if (!task_id) return Message.warning("未给定任务 ID"), false
+    const task = await api.getTask(task_id).catch((e: Error) => {
+        if (e.name === "HTTPError" && e.message.includes("status code 404")) {
+            Message.warning("未找到该任务")
+            return null
+        }
+        Message.error(`获取任务失败：${e.name}`)
+        console.error(e)
+        return null
+    })
+    if (!task) return false
+    queryTaskName.value = task.task_name
+    const inputArgs = JSON.parse(task.input_args) as SavedPredictData
+    modelId.value = inputArgs.model_id
+    form.source = task.source
+    for (let k in form) {
+        if (Object.prototype.hasOwnProperty.call(inputArgs, k)) {
+            (form as any)[k] = (inputArgs as any)[k]
+        }
+    }
+    if (task.results) {
+        resultData.value = JSON.parse(task.results)
+    }
+    const p_originalBlobUri = api.getFile(task.input_blob).then(blob => {
+        if (blob) {
+            const file = new File([blob], task.source === "image" ? "image.jpg" : "video.mp4", { type: blob.type })
+            uploadedFileList.value = [{ raw: file, status: "success", name: file.name, size: file.size }] as any
+        }
+        originalBlob.value = blob
+        return URL.createObjectURL(blob)
+    }).catch((e: Error) => {
+        Message.error(`获取输入文件失败：${e.name}`)
+        console.error(e)
+        return null
+    })
+    // fill results
+    const p_ResultsBlobUri = task.results_blob ? api.getFile(task.results_blob).then(blob => {
+        resultBlob.value = blob
+        return URL.createObjectURL(blob)
+    }).catch((e: Error) => {
+        Message.error(`获取结果文件失败：${e.name}`)
+        console.error(e)
+        return null
+    }) : Promise.resolve(null)
+    const [originalBlobUri, resultsBlobUri] = await Promise.all([p_originalBlobUri, p_ResultsBlobUri])
+    if (resultsBlobUri) {
+        if (task.source === "image") {
+            accept.value = acceptOptions.image.find(o => o.id === "blob")!.value
+            handleImageResultBlob(originalBlobUri!, resultsBlobUri!)
+        } else {
+            accept.value = acceptOptions.video.find(o => o.id === "blob")!.value
+            handleVideoResultBlob(originalBlobUri!, resultsBlobUri!)
+        }
+    } else if (resultData.value) {
+        if (task.source === "image") {
+            accept.value = acceptOptions.image.find(o => o.id === "data")!.value
+            handleImageResultData(originalBlobUri!, resultData.value as ImageResponse)
+        } else {
+            accept.value = acceptOptions.video.find(o => o.id === "data")!.value
+            handleVideoResultData(originalBlobUri!, resultData.value as VideoResponse)
+        }
+    }
+}
+
+onMounted(() => {
+    updateModels()
+    loadFromTaskQuery()
+})
+
 function clearResults() {
-    results.value = null;
-    resultsBlob.value = null;
+    resultData.value = null;
+    resultBlob.value = null;
+    // queryTaskName.value = "";
+    // setURLParams({ task: null }, false)
 }
 
 const handleExceed: UploadProps['onExceed'] = (files) => {
@@ -79,7 +168,6 @@ async function onSubmit() {
         Message.warning("请选择一个模型")
         return;
     }
-    console.log(uploadedFileList.value)
     if (uploadedFileList.value.length === 0) {
         Message.warning("请上传一个文件")
         return;
@@ -91,38 +179,41 @@ async function onSubmit() {
         source: props.source,
         file: uploadedFile,
     }
+    originalBlob.value = new Blob([uploadedFile], { type: uploadedFile.type });
     if (props.source === "image") {
         assignee.vid_stride = undefined;
-        const res = await api.callModels(modelId.value, Object.assign({}, form, assignee), accept.value).catch((e: Error) => {
-            Message.error(`提交任务失败：${e.name}`)
-            console.error(e)
-            submitLoading.value = false;
-            return null
-        })
-        if (res && !(res instanceof Blob)) {
-            results.value = res;
-            handleImageResult(URL.createObjectURL(uploadedFile), res);
-        } else if (res) {
-            Message.warning("Not implemented yet")
-        }
-    } else if (props.source === "video") {
-        const res = await api.callModels(modelId.value, Object.assign({}, form, assignee), accept.value).catch((e: Error) => {
+        const res = await api.callModels<"image">(modelId.value, Object.assign({}, form, assignee), accept.value).catch((e: Error) => {
             Message.error(`提交任务失败：${e.name}`)
             console.error(e)
             submitLoading.value = false;
             return null
         })
         if (res && (res instanceof Blob)) {
-            resultsBlob.value = res;
+            resultBlob.value = res;
+            handleImageResultBlob(URL.createObjectURL(uploadedFile), URL.createObjectURL(res));
+        } else if (res && !(res instanceof Blob)) {
+            resultData.value = res;
+            handleImageResultData(URL.createObjectURL(uploadedFile), res);
+        }
+    } else if (props.source === "video") {
+        const res = await api.callModels<"video">(modelId.value, Object.assign({}, form, assignee), accept.value).catch((e: Error) => {
+            Message.error(`提交任务失败：${e.name}`)
+            console.error(e)
+            submitLoading.value = false;
+            return null
+        })
+        if (res && (res instanceof Blob)) {
+            resultBlob.value = res;
             handleVideoResultBlob(URL.createObjectURL(uploadedFile), URL.createObjectURL(res));
         } else if (res) {
-            Message.warning("Not implemented yet")
+            resultData.value = res;
+            handleVideoResultData(URL.createObjectURL(uploadedFile), res);
         }
     }
     submitLoading.value = false;
 }
 
-async function handleImageResult(uri: string, data: ImageResponse) {
+async function handleImageResultData(uri: string, data: ImageResponse) {
     const o_canvas = originalCanvas.value!;
     const o_ctx = o_canvas.getContext('2d');
     if (!o_ctx) return;
@@ -169,6 +260,14 @@ async function handleImageResult(uri: string, data: ImageResponse) {
     img.src = uri;
 }
 
+async function handleImageResultBlob(originalUri: string, resultUri: string) {
+    Message.warning("Not implemented yet")
+}
+
+async function handleVideoResultData(originalUri: string, data: VideoResponse) {
+    Message.warning("Not implemented yet")
+}
+
 async function handleVideoResultBlob(originalUri: string, resultUri: string) {
     const o_video = originalVideo.value!;
     const r_video = resultVideo.value!
@@ -178,7 +277,7 @@ async function handleVideoResultBlob(originalUri: string, resultUri: string) {
 
 function switchOriginal() {
     showOriginal.value = !showOriginal.value;
-    if (props.source === 'video' && resultsBlob.value) {
+    if (props.source === 'video' && resultBlob.value) {
         const prev = showOriginal.value ? resultVideo.value! : originalVideo.value!;
         const next = showOriginal.value ? originalVideo.value! : resultVideo.value!;
         let state = prev.paused;
@@ -189,9 +288,59 @@ function switchOriginal() {
     }
 }
 
+async function saveResults() {
+    if (!submitTaskName.value) {
+        Message.warning("请输入任务名称")
+        return;
+    }
+    saveLoading.value = true;
+    const [originalId, resultId] = await Promise.all([
+        api.uploadFile(originalBlob.value!).then(r => r.id),
+        resultBlob.value ? api.uploadFile(resultBlob.value).then(r => r.id) : Promise.resolve(null)
+    ]).catch((e: Error) => {
+        Message.error(`上传失败：${e.name}`)
+        console.error(e)
+        return [null, null]
+    })
+    if (!originalId || (resultBlob.value && !resultId)) {
+        saveLoading.value = false;
+        return;
+    }
+    const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
+        source: props.source,
+        task_name: submitTaskName.value,
+        input_blob: originalId,
+        input_args: JSON.stringify(<SavedPredictData>{
+            model_id: modelId.value,
+            ...Object.assign({}, form, { file: undefined, source: undefined })
+        }),
+        results: resultData.value ? JSON.stringify(resultData.value) : null,
+        results_blob: resultId,
+    }
+    const task_id = await api.saveTask(uploadObject).then(r => r.task_id).catch((e: Error) => {
+        Message.error(`保存任务失败：${e.name}`)
+        console.error(e)
+        return null
+    })
+    if (task_id) {
+        setURLParams({ task: task_id }, true)
+        Message.success(`任务保存成功`)
+    }
+    saveLoading.value = false;
+}
+
 </script>
 
 <template>
+    <div class="mb-4 flex">
+        <span class="text-2xl flex-1">
+            <span v-if="queryTaskName">
+                <span class="font-bold">任务：</span><span>{{ queryTaskName }}</span>
+                <ElButton :circle="!hasResult" :link="hasResult" :icon="Refresh" class="!m-0 !ml-2 w-8" @click="loadFromTaskQuery" />
+            </span>
+        </span>
+        <span class="text-2xl font-bold">{{ props.title }}</span>
+    </div>
     <!-- Data -->
     <div>
         <div class="flex items-center gap-4">
@@ -201,6 +350,7 @@ function switchOriginal() {
             <ElForm :model="form" class="*:my-2">
                 <div class="*:my-2">
                     <span class="text-sm">选择模型</span>
+                    <ElButton link :icon="Refresh" class="!m-0 !ml-2" @click="updateModels" />
                     <ElSelect v-model="modelId">
                         <ElSelect.Option v-for="model in models" :key="model.id" :label="model.name"
                             :value="model.id" />
@@ -272,22 +422,32 @@ function switchOriginal() {
                     <span class="text-sm">输出处理方式</span>
                     <ElRadioGroup v-model="accept" size="small">
                         <ElRadio v-for="option in acceptOptions[props.source]" :key="option.value"
-                            :label="option.value">
+                            :value="option.value">
                             {{ option.name }}
                         </ElRadio>
                     </ElRadioGroup>
                 </div>
                 <div class="!mt-4 flex">
                     <ElButton type="primary" class="flex-1" @click="onSubmit" :loading="submitLoading">提交任务</ElButton>
-                    <ElButton type="warning" plain :icon="Delete" @click="clearResults" v-show="hasResults">
+                    <ElButton type="warning" plain :icon="Delete" @click="clearResults" v-show="hasResult">
                         清除结果</ElButton>
+                </div>
+                <div class="!mt-4 flex" v-show="hasResult">
+                    <ElInput v-model="submitTaskName" class="flex-1" placeholder="输入任务名称" />
+                    <ElPopconfirm width="200" :title="queryTaskName ? '确定保存该任务吗？这将不会覆盖原有任务' : '确定保存该任务吗？'"
+                        :hide-icon="true" @confirm="saveResults">
+                        <template #reference>
+                            <ElButton type="primary" plain :icon="FolderAdd" :loading="saveLoading">
+                                保存任务</ElButton>
+                        </template>
+                    </ElPopconfirm>
                 </div>
             </ElForm>
         </div>
     </div>
 
     <!-- Results -->
-    <div class="pt-8" v-show="hasResults">
+    <div class="pt-8" v-show="hasResult">
         <div class="flex items-center gap-4">
             <span class="text-xl font-bold">任务结果</span>
             <ElButton text size="small" bg :type="showOriginal ? 'primary' : ''" @click="switchOriginal">

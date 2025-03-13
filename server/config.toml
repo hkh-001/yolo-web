@@ -1,3 +1,7 @@
+[database]
+driver = "sqlite"
+file = "data/sqlite.db"
+
 [[models]]
 id = "yolov5n"
 name = "Yolo V5-n"

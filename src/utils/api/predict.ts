@@ -43,6 +43,10 @@ export interface PredictData {
     classes: string[]
 }
 
+export type SavedPredictData = Omit<PredictData, "source" | "file"> & {
+    model_id: string
+}
+
 export const defaultsPredictData: Partial<PredictData> = {
     imgsz: 640,
     conf: 0.25,
@@ -67,3 +71,5 @@ interface ImageResponseBox {
 }
 
 export type ImageResponse = ImageResponseBox[]
+
+export type VideoResponse = ImageResponseBox[][]

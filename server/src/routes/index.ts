@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import config from '@/config';
+import { sql } from '@/utils/init';
+import * as uuid from 'uuid';
 
 const router = new Hono({})
 
@@ -22,5 +24,80 @@ router.post('/model/:id', async (c) => {
     })
     return fetch(request);
 });
+
+router.get('/files/:filename', async (c) => {
+    const filename = c.req.param("filename");
+    const path = `data/files/${filename}`;
+    const file = Bun.file(path);
+    if (!await file.exists()) {
+        return new Response('File not found', { status: 404 });
+    }
+    return new Response(file, {
+        headers: {
+            'Content-Type': 'application/octet-stream',
+        }
+    });
+})
+
+async function sha256File(file: File) {
+    const buffer = await file.arrayBuffer();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+router.post('/upload', async (c) => {
+    const body = await c.req.formData();
+    const file = body.get('file') as File | null
+    if (!file) {
+        throw new HTTPException(400, { message: 'No file uploaded' });
+    }
+    // calculate sha256
+    const fn = await sha256File(file);
+    const path = `data/files/${fn}`;
+    await Bun.write(path, file);
+    return Response.json({ id: fn });
+})
+
+router.get('/task/:uuid', async (c) => {
+    const task = await sql.getTask(c.req.param("uuid"));
+    if (!task) return new Response('Task not found', { status: 404 });
+    return Response.json(task);
+});
+
+router.delete('/task/:uuid', async (c) => {
+    const task_id = c.req.param("uuid");
+    const task = await sql.getTask(task_id);
+    if (!task) return new Response('Task not found', { status: 404 });
+    await sql.deleteTask(c.req.param("uuid"));
+    const fns = [task.input_blob, task.results_blob];
+    const deletePool: Promise<void>[] = [];
+    for (const fn of fns) {
+        if (!fn) continue;
+        const p = sql.existsFile(fn).then(async (exists) => {
+            if (!exists) {
+                const path = `data/files/${fn}`;
+                const file = Bun.file(path);
+                if (await file.exists()) {
+                    await file.delete();
+                }
+            }
+        })
+        deletePool.push(p);
+    }
+    await Promise.all(deletePool);
+    return Response.json({ task: task_id, message: 'Task deleted' });
+});
+
+router.post('/task', async (c) => {
+    const body = await c.req.json();
+    const task_id = await sql.insertTask(body);
+    return Response.json({ task_id });
+})
+
+router.get('tasks', async (c) => {
+    const tasks = await sql.listTasks();
+    return Response.json(tasks);
+})
 
 export default router;

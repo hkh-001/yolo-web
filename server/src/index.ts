@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import router from "@/routes"
 import { HTTPException } from 'hono/http-exception';
+import '@/utils/init';
 
 const app = new Hono();
 

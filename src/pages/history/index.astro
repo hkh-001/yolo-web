@@ -1,0 +1,11 @@
+---
+import Layout from "../_layout.astro";
+import HistoryTable from "./_blocks/HistoryTable.vue";
+---
+
+<Layout headerActive="/history" asideNav={[]}>
+    <div class="mb-4 text-right">
+        <span class="text-2xl font-bold">历史记录</span>
+        <HistoryTable client:load />
+    </div>
+</Layout>
