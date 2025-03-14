@@ -8,9 +8,13 @@
 
 > 位于 [src/](./src) 目录下。
 
-采用 SSG 技术，基准生成框架使用 [Astro](https://astro.build/)，并集成 [Vue](https://vuejs.org/).
+项目使用 TypeScript 和 SCSS 编写。
+
+采用 SSG 技术。基准生成框架使用 [Astro](https://astro.build/)，并集成 [Vue](https://vuejs.org/).
 
 图标库、组件库部分采用了 [Element Plus](https://element-plus.org/).
+
+样式框架采用 [Tailwind CSS](https://tailwindcss.com/).
 
 ### 后端
 
