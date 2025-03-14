@@ -4,6 +4,10 @@ import toml from 'toml';
 const configStr = fs.readFileSync('config.toml', 'utf8');
 
 export interface Config {
+    server: {
+        port: number;
+        host: string;
+    }
     database: {
         driver: "sqlite";
         file: string;

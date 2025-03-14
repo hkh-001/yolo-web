@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import router from "@/routes"
 import { HTTPException } from 'hono/http-exception';
+import config from '@/config';
 import '@/utils/init';
 
 const app = new Hono();
@@ -17,7 +18,7 @@ app.onError((e, c) => {
 })
 
 export default {
-    host: '0.0.0.0',
-    port: 3000,
+    host: config.server.host,
+    port: config.server.port,
     fetch: app.fetch.bind(app),
 }
