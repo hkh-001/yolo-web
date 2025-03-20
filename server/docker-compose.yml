@@ -1,0 +1,14 @@
+version: "3.7"
+name: yolo-server
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - yolo-data:/app/data
+      # - config.toml:/app/config.toml
+    ports:
+      - "3000:3000"
