@@ -13,6 +13,9 @@ RUN mkdir -p /app/data
 
 RUN bun install
 
+ENV BUN_ENV=production
+ENV NODE_ENV=production
+
 CMD ["bun", "run", "start"]
 
 EXPOSE 3000
