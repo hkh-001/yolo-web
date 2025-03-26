@@ -9,6 +9,6 @@ services:
       - TZ=Asia/Shanghai
     volumes:
       - yolo-data:/app/data
-      # - config.toml:/app/config.toml
+      - ./config.toml:/app/config.toml
     ports:
       - "3000:3000"
