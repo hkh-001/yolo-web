@@ -250,17 +250,26 @@ async function onSubmit() {
 }
 
 async function handleImageResultData(uri: string, data: ImageResponse) {
+    console.log('[Render] 开始绘制结果，原图URI:', uri.substring(0, 50) + '...');
     const o_canvas = originalCanvas.value!;
     const o_ctx = o_canvas.getContext('2d');
-    if (!o_ctx) return;
+    if (!o_ctx) {
+        console.error('[Render] 无法获取 originalCanvas context');
+        return;
+    }
     const r_canvas = resultCanvas.value!;
     const r_ctx = r_canvas.getContext('2d');
-    if (!r_ctx) return;
+    if (!r_ctx) {
+        console.error('[Render] 无法获取 resultCanvas context');
+        return;
+    }
     const img = new Image();
     img.onload = () => {
+        console.log('[Render] 图片加载成功:', img.width, 'x', img.height);
         o_canvas.width = img.width;
         o_canvas.height = img.height;
         o_ctx.drawImage(img, 0, 0);
+        console.log('[Render] 原图绘制完成');
 
         r_canvas.width = img.width;
         r_canvas.height = img.height;
@@ -312,6 +321,20 @@ async function handleVideoResultBlob(originalUri: string, resultUri: string) {
 }
 
 function switchOriginal() {
+    console.log('[ViewOriginal] 按钮被点击，当前状态:', showOriginal.value);
+    
+    // 如果有原图 blob，优先在新窗口打开
+    if (originalBlob.value) {
+        const url = URL.createObjectURL(originalBlob.value);
+        console.log('[ViewOriginal] 打开原图:', url);
+        window.open(url, '_blank');
+        // 清理 URL 对象（延迟清理，确保图片加载完成）
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        return;
+    }
+    
+    // 否则切换显示状态
+    console.log('[ViewOriginal] 无原图 blob，切换显示状态');
     showOriginal.value = !showOriginal.value;
     if (props.source === 'video' && resultBlob.value) {
         const prev = showOriginal.value ? resultVideo.value! : originalVideo.value!;
@@ -487,7 +510,7 @@ async function saveResults() {
         <div class="flex items-center gap-4">
             <span class="text-xl font-bold">任务结果</span>
             <ElButton text size="small" bg :type="showOriginal ? 'primary' : ''" @click="switchOriginal">
-                {{ props.source === "image" ? "查看原图" : "查看原视频" }}
+                {{ props.source === "image" ? "打开原图" : "查看原视频" }}
             </ElButton>
         </div>
         <!-- Image -->
