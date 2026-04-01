@@ -7,7 +7,7 @@ driver = "sqlite"
 file = "data/sqlite.db"
 
 [[models]]
-id = "yolov5n"
-name = "Yolo V5-n"
-api_url = "http://localhost:5000/model/yolov5n"
-api_key = "sk-1234567890"
+id = "yolo26n"
+name = "YOLO26-n"
+api_url = "http://127.0.0.1:5000/model/yolo26n"
+api_key = ""
