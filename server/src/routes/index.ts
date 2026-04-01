@@ -13,39 +13,112 @@ router.get('/models', async (c) => {
 router.post('/model/:id', async (c) => {
     const modelId = c.req.param("id");
     const startTime = Date.now();
-    console.log(`[Backend] 收到模型请求: ${modelId}, 时间: ${new Date().toISOString()}`);
+    console.log(`[Backend] ========== 收到模型请求: ${modelId} ==========`);
+    console.log(`[Backend] 时间: ${new Date().toISOString()}`);
     
     const model = config.models.find((m) => m.id === modelId);
     if (!model) {
-        console.error(`[Backend] 模型未找到: ${modelId}`);
-        throw new HTTPException(404, { message: 'Model not found' });
+        console.error(`[Backend] ❌ 模型未找到: ${modelId}`);
+        return Response.json({
+            success: false,
+            message: `模型 ${modelId} 未配置`,
+            available_models: config.models.map(m => m.id)
+        }, { status: 404 });
     }
     
-    console.log(`[Backend] 转发到: ${model.api_url}`);
-    console.log(`[Backend] 请求方法: ${c.req.method}`);
+    console.log(`[Backend] 目标: ${model.api_url}`);
     
-    const header = new Headers(c.req.raw.headers);
+    // 克隆 body，避免流被消费
+    let bodyData: ArrayBuffer | null = null;
+    try {
+        bodyData = await c.req.arrayBuffer();
+        console.log(`[Backend] Body 读取成功: ${bodyData.byteLength} bytes`);
+    } catch (e) {
+        console.error(`[Backend] ❌ Body 读取失败:`, e);
+        return Response.json({
+            success: false,
+            message: '读取请求体失败'
+        }, { status: 400 });
+    }
+    
+    const header = new Headers();
     header.set('X-Api-Key', model.api_key);
+    // 复制 content-type
+    const contentType = c.req.header('content-type');
+    if (contentType) {
+        header.set('Content-Type', contentType);
+    }
     
     try {
-        console.log(`[Backend] ➡️ 准备构造请求对象...`);
-        const request = new Request(model.api_url, {
-            method: c.req.method.toUpperCase(),
-            headers: header,
-            body: c.req.raw.body,
-        });
-        console.log(`[Backend] ➡️ 请求对象构造完成，准备 fetch...`);
-        
+        console.log(`[Backend] ➡️ 开始 fetch (超时 30s)...`);
         const fetchStart = Date.now();
-        const response = await fetch(request);
-        console.log(`[Backend] ⬅️ fetch 完成，耗时: ${Date.now() - fetchStart}ms`);
+        
+        // 使用 AbortController 实现超时
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            console.error(`[Backend] ⏱️ fetch 超时，主动取消`);
+            controller.abort();
+        }, 30000); // 30 秒超时
+        
+        const response = await fetch(model.api_url, {
+            method: 'POST',
+            headers: header,
+            body: bodyData,
+            signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
+        const fetchDuration = Date.now() - fetchStart;
+        console.log(`[Backend] ⬅️ fetch 完成，耗时: ${fetchDuration}ms, 状态: ${response.status}`);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[Backend] ❌ 模型返回错误: ${response.status}, ${errorText}`);
+            return Response.json({
+                success: false,
+                message: `模型服务返回错误: ${response.status}`,
+                detail: errorText
+            }, { status: 502 });
+        }
+        
+        // 透传响应
+        const responseBody = await response.arrayBuffer();
+        console.log(`[Backend] ✅ 成功返回，总耗时: ${Date.now() - startTime}ms`);
+        
+        return new Response(responseBody, {
+            status: response.status,
+            headers: {
+                'Content-Type': response.headers.get('content-type') || 'application/json'
+            }
+        });
+        
+    } catch (error: any) {
         const duration = Date.now() - startTime;
-        console.log(`[Backend] 模型响应成功, 耗时: ${duration}ms, 状态: ${response.status}`);
-        return response;
-    } catch (error) {
-        const duration = Date.now() - startTime;
-        console.error(`[Backend] 模型请求失败, 耗时: ${duration}ms, 错误:`, error);
-        throw new HTTPException(502, { message: 'Model service error' });
+        console.error(`[Backend] ❌ fetch 异常, 耗时: ${duration}ms`);
+        console.error(`[Backend]    错误名: ${error.name}`);
+        console.error(`[Backend]    错误消息: ${error.message}`);
+        
+        if (error.name === 'AbortError') {
+            return Response.json({
+                success: false,
+                message: '模型服务响应超时 (30s)',
+                detail: '请检查模型服务是否正常启动，或模型是否正在加载中'
+            }, { status: 504 });
+        }
+        
+        if (error.code === 'ECONNREFUSED' || error.message?.includes('connect')) {
+            return Response.json({
+                success: false,
+                message: '无法连接到模型服务',
+                detail: `请检查 ${model.api_url} 是否可访问`
+            }, { status: 503 });
+        }
+        
+        return Response.json({
+            success: false,
+            message: '模型服务请求失败',
+            detail: error.message || String(error)
+        }, { status: 502 });
     }
 });
 

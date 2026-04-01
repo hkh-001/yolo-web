@@ -163,7 +163,16 @@ const handleExceed: UploadProps['onExceed'] = (files) => {
     uploadEl.value!.handleStart(file)
 }
 
+// 防止重复提交锁
+let isSubmitting = false;
+
 async function onSubmit() {
+    // 防止重复提交
+    if (isSubmitting) {
+        Message.warning("任务正在提交中，请稍候...")
+        return;
+    }
+    
     if (!modelId.value) {
         Message.warning("请选择一个模型")
         return;
@@ -173,44 +182,71 @@ async function onSubmit() {
         return;
     }
 
+    isSubmitting = true;
     submitLoading.value = true;
+    
+    console.log(`[Submit] 开始提交任务，模型: ${modelId.value}`);
     const uploadedFile: File = uploadedFileList.value[0].raw!;
     let assignee: Partial<PredictData> = {
         source: props.source,
         file: uploadedFile,
     }
     originalBlob.value = new Blob([uploadedFile], { type: uploadedFile.type });
-    if (props.source === "image") {
-        assignee.vid_stride = undefined;
-        const res = await api.callModels<"image">(modelId.value, Object.assign({}, form, assignee), accept.value).catch((e: Error) => {
-            Message.error(`提交任务失败：${e.name}`)
-            console.error(e)
-            submitLoading.value = false;
-            return null
-        })
+    
+    try {
+        let res;
+        if (props.source === "image") {
+            assignee.vid_stride = undefined;
+            res = await api.callModels<"image">(modelId.value, Object.assign({}, form, assignee), accept.value);
+        } else {
+            res = await api.callModels<"video">(modelId.value, Object.assign({}, form, assignee), accept.value);
+        }
+        
         if (res && (res instanceof Blob)) {
             resultBlob.value = res;
             handleImageResultBlob(URL.createObjectURL(uploadedFile), URL.createObjectURL(res));
         } else if (res && !(res instanceof Blob)) {
             resultData.value = res;
-            handleImageResultData(URL.createObjectURL(uploadedFile), res);
+            if (props.source === "image") {
+                handleImageResultData(URL.createObjectURL(uploadedFile), res);
+            } else {
+                handleVideoResultData(URL.createObjectURL(uploadedFile), res);
+            }
         }
-    } else if (props.source === "video") {
-        const res = await api.callModels<"video">(modelId.value, Object.assign({}, form, assignee), accept.value).catch((e: Error) => {
-            Message.error(`提交任务失败：${e.name}`)
-            console.error(e)
-            submitLoading.value = false;
-            return null
-        })
-        if (res && (res instanceof Blob)) {
-            resultBlob.value = res;
-            handleVideoResultBlob(URL.createObjectURL(uploadedFile), URL.createObjectURL(res));
-        } else if (res) {
-            resultData.value = res;
-            handleVideoResultData(URL.createObjectURL(uploadedFile), res);
+        Message.success("任务提交成功");
+        
+    } catch (e: any) {
+        console.error('[Submit] 提交失败:', e);
+        
+        // 显示详细错误信息
+        let errorMsg = '提交失败';
+        if (e.name === 'TimeoutError' || e.message?.includes('timeout')) {
+            errorMsg = '请求超时：模型服务响应时间过长';
+        } else if (e.message) {
+            errorMsg = e.message;
         }
+        
+        // 如果后端返回了 JSON 错误，尝试解析
+        if (e.response) {
+            try {
+                const errorData = await e.response.json();
+                if (errorData.message) {
+                    errorMsg = errorData.message;
+                }
+                if (errorData.detail) {
+                    console.error('[Submit] 错误详情:', errorData.detail);
+                }
+            } catch {
+                // 解析失败，使用默认错误消息
+            }
+        }
+        
+        Message.error(errorMsg);
+    } finally {
+        submitLoading.value = false;
+        isSubmitting = false;
+        console.log('[Submit] 提交流程结束');
     }
-    submitLoading.value = false;
 }
 
 async function handleImageResultData(uri: string, data: ImageResponse) {
