@@ -208,9 +208,9 @@ async function onSubmit() {
         } else if (res && !(res instanceof Blob)) {
             resultData.value = res;
             if (props.source === "image") {
-                handleImageResultData(URL.createObjectURL(uploadedFile), res);
+                handleImageResultData(URL.createObjectURL(uploadedFile), res as ImageResponse);
             } else {
-                handleVideoResultData(URL.createObjectURL(uploadedFile), res);
+                handleVideoResultData(URL.createObjectURL(uploadedFile), res as VideoResponse);
             }
         }
         Message.success("任务提交成功");
