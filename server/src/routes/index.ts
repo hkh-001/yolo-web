@@ -43,10 +43,18 @@ router.post('/model/:id', async (c) => {
     
     const header = new Headers();
     header.set('X-Api-Key', model.api_key);
+    
     // 复制 content-type
     const contentType = c.req.header('content-type');
     if (contentType) {
         header.set('Content-Type', contentType);
+    }
+    
+    // 复制 accept（关键！决定 5000 返回 JSON 还是图片）
+    const acceptHeader = c.req.header('accept');
+    if (acceptHeader) {
+        header.set('Accept', acceptHeader);
+        console.log(`[Backend] Accept: ${acceptHeader}`);
     }
     
     try {
