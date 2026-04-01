@@ -386,19 +386,6 @@ function clearResults() {
             <div class="text-sm font-bold mb-2 text-blue-600">前端渲染结果（数据模式）</div>
             <canvas ref="resultCanvas" class="max-w-full"></canvas>
         </div>
-            
-            <!-- Detection Result -->
-            <div class="border rounded-lg p-4">
-                <div class="text-sm font-bold mb-2 text-blue-500">检测结果 (Bbox)</div>
-                <canvas ref="maskCanvas" class="max-w-full"></canvas>
-            </div>
-            
-            <!-- Mask Overlay (Canvas绘制版) -->
-            <div class="border rounded-lg p-4">
-                <div class="text-sm font-bold mb-2 text-orange-500">Canvas Mask（注：用bbox近似）</div>
-                <canvas ref="resultCanvas" class="max-w-full"></canvas>
-            </div>
-        </div>
         
         <!-- Detection List -->
         <div class="mt-6" v-if="resultData && resultData.boxes">
