@@ -202,60 +202,35 @@ async def predict_seg(
     r = results[0]
     accept = request.headers.get("accept", "application/json")
     
-    # 解析分割结果
-    detections = []
-    if r.boxes is not None:
-        names = r.names
-        
-        for i, box in enumerate(r.boxes):
-            cls_id = int(box.cls[0].item())
-            conf_val = float(box.conf[0].item())
-            x1, y1, x2, y2 = box.xyxy[0].tolist()
-            
-            detection = {
-                "cls": cls_id,
-                "name": names.get(cls_id, str(cls_id)),
-                "conf": conf_val,
-                "box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
-            }
-            
-            # 添加掩码信息
-            if r.masks is not None and i < len(r.masks):
-                mask = r.masks[i]
-                detection["has_mask"] = True
-                
-                # 提取掩码轮廓（简化版：返回掩码的 bounding box 和中心点）
-                try:
-                    mask_data = mask.data.cpu().numpy() if hasattr(mask, 'data') else mask
-                    if len(mask_data.shape) == 3:
-                        mask_data = mask_data[0]  # 取第一个通道
-                    
-                    # 找到 mask 的非零点
-                    y_indices, x_indices = np.where(mask_data > 0.5)
-                    if len(y_indices) > 0:
-                        detection["mask_bbox"] = {
-                            "x1": float(x_indices.min()),
-                            "y1": float(y_indices.min()),
-                            "x2": float(x_indices.max()),
-                            "y2": float(y_indices.max())
-                        }
-                        detection["mask_center"] = {
-                            "x": float(x_indices.mean()),
-                            "y": float(y_indices.mean())
-                        }
-                        detection["mask_area"] = int(len(y_indices))
-                except Exception as e:
-                    print(f"[SegModel] 掩码处理失败: {e}")
-                    detection["mask_bbox"] = detection["box"]  #  fallback 使用 bbox
-            else:
-                detection["has_mask"] = False
-            
-            detections.append(detection)
-    
     print(f"[SegModel] 推理完成: {inference_time:.2f}s, 总耗时: {total_time:.2f}s")
-    print(f"[SegModel] 检测到 {len(detections)} 个目标（含掩码）")
     
+    # 根据 Accept 返回不同格式
     if "application/json" in accept:
+        # JSON 格式：返回详细检测数据
+        detections = []
+        if r.boxes is not None:
+            names = r.names
+            for i, box in enumerate(r.boxes):
+                cls_id = int(box.cls[0].item())
+                conf_val = float(box.conf[0].item())
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                
+                detection = {
+                    "cls": cls_id,
+                    "name": names.get(cls_id, str(cls_id)),
+                    "conf": conf_val,
+                    "box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+                }
+                
+                # 添加掩码信息
+                if r.masks is not None and i < len(r.masks):
+                    detection["has_mask"] = True
+                else:
+                    detection["has_mask"] = False
+                
+                detections.append(detection)
+        
+        print(f"[SegModel] 返回 JSON 格式，{len(detections)} 个目标")
         return {
             "source": "image",
             "width": int(r.orig_shape[1]),
@@ -266,9 +241,12 @@ async def predict_seg(
             "task": "segmentation"
         }
     
+    # 图片格式：返回 r.plot() 生成的真实 mask overlay 图
+    print(f"[SegModel] 生成 overlay 结果图...")
     plotted = r.plot()
     ok, encoded = cv2.imencode(".jpg", plotted)
     if not ok:
         raise HTTPException(status_code=500, detail="结果图编码失败")
-
+    
+    print(f"[SegModel] 返回图片格式，包含真实 mask overlay")
     return Response(content=encoded.tobytes(), media_type="image/jpeg")
