@@ -30,8 +30,11 @@ async def predict(
     half: bool = Form(False),
     augment: bool = Form(False),
 ):
+    print(f"\n{'='*60}")
+    print(f"[Model] ⬅️⬅️⬅️ 收到请求: {datetime.now()}")
+    print(f"[Model] 文件: {file.filename if file else 'None'}")
+    print(f"{'='*60}\n")
     start_time = time.time()
-    print(f"[Model] 收到推理请求: {datetime.now()}, 文件: {file.filename}")
     
     if source != "image":
         return JSONResponse(

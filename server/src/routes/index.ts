@@ -22,17 +22,23 @@ router.post('/model/:id', async (c) => {
     }
     
     console.log(`[Backend] 转发到: ${model.api_url}`);
+    console.log(`[Backend] 请求方法: ${c.req.method}`);
+    
     const header = new Headers(c.req.raw.headers);
     header.set('X-Api-Key', model.api_key);
     
     try {
+        console.log(`[Backend] ➡️ 准备构造请求对象...`);
         const request = new Request(model.api_url, {
             method: c.req.method.toUpperCase(),
             headers: header,
             body: c.req.raw.body,
         });
+        console.log(`[Backend] ➡️ 请求对象构造完成，准备 fetch...`);
         
+        const fetchStart = Date.now();
         const response = await fetch(request);
+        console.log(`[Backend] ⬅️ fetch 完成，耗时: ${Date.now() - fetchStart}ms`);
         const duration = Date.now() - startTime;
         console.log(`[Backend] 模型响应成功, 耗时: ${duration}ms, 状态: ${response.status}`);
         return response;

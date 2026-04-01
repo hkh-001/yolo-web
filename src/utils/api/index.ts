@@ -56,7 +56,18 @@ export function callModels<T extends PredictData["source"]>(modelId: string, dat
         return response.blob();
     }).catch(error => {
         const duration = Date.now() - startTime;
-        console.error(`[API] 请求失败, 耗时: ${duration}ms, 错误:`, error.name, error.message);
+        console.error(`[API] ❌ 请求失败, 耗时: ${duration}ms`);
+        console.error(`[API]    错误类型: ${error.name}`);
+        console.error(`[API]    错误消息: ${error.message}`);
+        
+        if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
+            console.error('[API] ⚠️ 请求超时诊断:');
+            console.error('    1. 检查后端服务是否运行: http://localhost:3000/models');
+            console.error('    2. 检查模型服务是否运行: http://localhost:5000/health');
+            console.error('    3. 检查后端控制台是否有 [Backend] 收到模型请求 日志');
+            console.error('    4. 检查 Python 控制台是否有 [Model] 收到推理请求 日志');
+        }
+        
         throw error;
     });
 }
