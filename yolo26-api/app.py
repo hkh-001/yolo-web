@@ -69,6 +69,16 @@ async def predict(
     inference_time = time.time() - inference_start
     total_time = time.time() - start_time
     print(f"[Model] 推理完成: {inference_time:.2f}s, 总耗时: {total_time:.2f}s")
+    
+    # 打印检测结果详情
+    print(f"[Model] ========== 检测结果 ==========")
+    print(f"[Model] 检测到的目标数量: {len(boxes_out)}")
+    print(f"[Model] 当前参数: conf={conf}, iou={iou}, imgsz={imgsz}, max_det={max_det}")
+    for i, box in enumerate(boxes_out[:5]):  # 只打印前5个
+        print(f"[Model]   [{i}] {box['name']}: conf={box['conf']:.3f}, box=({box['box']['x1']:.1f}, {box['box']['y1']:.1f}, {box['box']['x2']:.1f}, {box['box']['y2']:.1f})")
+    if len(boxes_out) > 5:
+        print(f"[Model]   ... 还有 {len(boxes_out) - 5} 个目标")
+    print(f"[Model] =================================")
 
     r = results[0]
     accept = request.headers.get("accept", "application/json")

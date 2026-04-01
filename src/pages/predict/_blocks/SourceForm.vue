@@ -249,18 +249,45 @@ async function onSubmit() {
     }
 }
 
-async function handleImageResultData(uri: string, data: ImageResponse) {
-    console.log('[Render] 开始绘制结果，原图URI:', uri.substring(0, 50) + '...');
+async function handleImageResultData(uri: string, data: any) {
+    console.log('[Render] ========== 开始绘制结果 ==========');
+    console.log('[Render] 原图URI:', uri.substring(0, 50) + '...');
+    console.log('[Render] 收到的数据类型:', typeof data);
+    console.log('[Render] 收到的数据结构:', JSON.stringify(data, null, 2).substring(0, 500));
+    
+    // 检查数据格式
+    let boxes: any[] = [];
+    if (Array.isArray(data)) {
+        console.log('[Render] 数据是数组，长度:', data.length);
+        boxes = data;
+    } else if (data && data.boxes && Array.isArray(data.boxes)) {
+        console.log('[Render] 数据包含 boxes 字段，数量:', data.boxes.length);
+        boxes = data.boxes;
+    } else if (data && data.predictions && Array.isArray(data.predictions)) {
+        console.log('[Render] 数据包含 predictions 字段，数量:', data.predictions.length);
+        boxes = data.predictions;
+    } else {
+        console.error('[Render] ❌ 无法识别的数据格式:', data);
+        return;
+    }
+    
+    console.log('[Render] 检测框数量:', boxes.length);
+    if (boxes.length === 0) {
+        console.warn('[Render] ⚠️ 没有检测到任何目标');
+    } else {
+        console.log('[Render] 第一个检测框:', JSON.stringify(boxes[0]));
+    }
+    
     const o_canvas = originalCanvas.value!;
     const o_ctx = o_canvas.getContext('2d');
     if (!o_ctx) {
-        console.error('[Render] 无法获取 originalCanvas context');
+        console.error('[Render] ❌ 无法获取 originalCanvas context');
         return;
     }
     const r_canvas = resultCanvas.value!;
     const r_ctx = r_canvas.getContext('2d');
     if (!r_ctx) {
-        console.error('[Render] 无法获取 resultCanvas context');
+        console.error('[Render] ❌ 无法获取 resultCanvas context');
         return;
     }
     const img = new Image();
@@ -274,19 +301,41 @@ async function handleImageResultData(uri: string, data: ImageResponse) {
         r_canvas.width = img.width;
         r_canvas.height = img.height;
         r_ctx.drawImage(img, 0, 0);
-        const boxes = data.map(box => {
-            return {
-                ...box,
-                x: box.xmin,
-                y: box.ymin,
-                w: box.xmax - box.xmin,
-                h: box.ymax - box.ymin
+        console.log('[Render] 准备绘制', boxes.length, '个检测框');
+        
+        // 兼容两种字段命名：box.x1/y1/x2/y2 或 xmin/ymin/xmax/ymax
+        const normalizedBoxes = boxes.map((box: any, index: number) => {
+            // 检查字段名
+            let x, y, w, h, name, confidence, cls;
+            
+            if (box.box) {
+                // Python 返回格式: {box: {x1, y1, x2, y2}, name, conf, cls}
+                x = box.box.x1;
+                y = box.box.y1;
+                w = box.box.x2 - box.box.x1;
+                h = box.box.y2 - box.box.y1;
+                name = box.name;
+                confidence = box.conf;
+                cls = box.cls;
+            } else {
+                // 原始格式: {xmin, ymin, xmax, ymax, name, confidence, class}
+                x = box.xmin;
+                y = box.ymin;
+                w = box.xmax - box.xmin;
+                h = box.ymax - box.ymin;
+                name = box.name;
+                confidence = box.confidence;
+                cls = box.class;
             }
+            
+            console.log(`[Render] 框[${index}]: ${name} (${confidence?.toFixed(2)}) at [${x?.toFixed(0)}, ${y?.toFixed(0)}]`);
+            
+            return { x, y, w, h, name, confidence, class: cls };
         })
         const colors = ["yellow", "white", "blue", "green", "red",]
         const types: number[] = []
-        for (let i = 0; i < boxes.length; i++) {
-            const box = boxes[i];
+        for (let i = 0; i < normalizedBoxes.length; i++) {
+            const box = normalizedBoxes[i];
             let colori = 0
             if (types.includes(box.class)) colori = types.indexOf(box.class) % colors.length
             else {
@@ -299,8 +348,9 @@ async function handleImageResultData(uri: string, data: ImageResponse) {
             // font weight bold
             r_ctx.font = "24px Arial-Bold";
             r_ctx.fillStyle = colors[colori];
-            r_ctx.fillText(`${box.name} (${box.confidence.toFixed(2)})`, box.x, box.y - 12);
+            r_ctx.fillText(`${box.name} (${box.confidence?.toFixed(2) || 0})`, box.x, box.y - 12);
         }
+        console.log('[Render] ========== 绘制完成 ==========');
     }
     img.src = uri;
 }
