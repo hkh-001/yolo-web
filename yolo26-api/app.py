@@ -3,11 +3,15 @@ from fastapi.responses import JSONResponse, Response
 from ultralytics import YOLO
 import numpy as np
 import cv2
+import time
+from datetime import datetime
 
 app = FastAPI()
 
 MODEL_PATH = "weights/yolo26n.pt"
+print(f"[Model] 正在加载模型: {MODEL_PATH} ...")
 model = YOLO(MODEL_PATH)
+print(f"[Model] 模型加载完成")
 
 @app.get("/health")
 def health():
@@ -26,6 +30,9 @@ async def predict(
     half: bool = Form(False),
     augment: bool = Form(False),
 ):
+    start_time = time.time()
+    print(f"[Model] 收到推理请求: {datetime.now()}, 文件: {file.filename}")
+    
     if source != "image":
         return JSONResponse(
             {"error": "当前版本只支持 image，不支持 video"},
@@ -33,11 +40,16 @@ async def predict(
         )
 
     data = await file.read()
+    print(f"[Model] 文件读取完成: {len(data)} bytes")
+    
     arr = np.frombuffer(data, np.uint8)
     img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
     if img is None:
         raise HTTPException(status_code=400, detail="无法解析上传图片")
+    
+    print(f"[Model] 图片解码完成: {img.shape}, 开始推理...")
+    inference_start = time.time()
 
     results = model.predict(
         source=img,
@@ -50,6 +62,10 @@ async def predict(
         augment=augment,
         verbose=False
     )
+    
+    inference_time = time.time() - inference_start
+    total_time = time.time() - start_time
+    print(f"[Model] 推理完成: {inference_time:.2f}s, 总耗时: {total_time:.2f}s")
 
     r = results[0]
     accept = request.headers.get("accept", "application/json")

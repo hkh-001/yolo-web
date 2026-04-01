@@ -11,18 +11,36 @@ router.get('/models', async (c) => {
 });
 
 router.post('/model/:id', async (c) => {
-    const model = config.models.find((m) => m.id === c.req.param("id"))!;
+    const modelId = c.req.param("id");
+    const startTime = Date.now();
+    console.log(`[Backend] 收到模型请求: ${modelId}, 时间: ${new Date().toISOString()}`);
+    
+    const model = config.models.find((m) => m.id === modelId);
     if (!model) {
+        console.error(`[Backend] 模型未找到: ${modelId}`);
         throw new HTTPException(404, { message: 'Model not found' });
     }
+    
+    console.log(`[Backend] 转发到: ${model.api_url}`);
     const header = new Headers(c.req.raw.headers);
     header.set('X-Api-Key', model.api_key);
-    const request = new Request(model.api_url, {
-        method: c.req.method.toUpperCase(),
-        headers: header,
-        body: c.req.raw.body,
-    })
-    return fetch(request);
+    
+    try {
+        const request = new Request(model.api_url, {
+            method: c.req.method.toUpperCase(),
+            headers: header,
+            body: c.req.raw.body,
+        });
+        
+        const response = await fetch(request);
+        const duration = Date.now() - startTime;
+        console.log(`[Backend] 模型响应成功, 耗时: ${duration}ms, 状态: ${response.status}`);
+        return response;
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`[Backend] 模型请求失败, 耗时: ${duration}ms, 错误:`, error);
+        throw new HTTPException(502, { message: 'Model service error' });
+    }
 });
 
 router.get('/files/:filename', async (c) => {

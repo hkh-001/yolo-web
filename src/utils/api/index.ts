@@ -7,7 +7,11 @@ const API_BASE = config.web.api_base
 
 export const _api = ky.create({
     prefixUrl: API_BASE,
+    timeout: 60000, // 60 秒超时，YOLO 推理可能需要较长时间
 });
+
+// 调试日志开关
+const DEBUG = true;
 
 export interface ModelInfo {
     id: string
@@ -25,6 +29,12 @@ export type CallModelResponse<T extends PredictData["source"]> = {
 }[T]
 
 export function callModels<T extends PredictData["source"]>(modelId: string, data: CallModelInput, accept?: string): Promise<CallModelResponse<T>> {
+    const startTime = Date.now();
+    if (DEBUG) {
+        console.log(`[API] 开始请求模型: ${modelId}, 时间: ${new Date().toISOString()}`);
+        console.log(`[API] 文件: ${data.file?.name}, 大小: ${data.file?.size} bytes`);
+    }
+
     const formdata = new FormData();
     if (data.file) formdata.append('file', data.file, data.file.name);
     Object.entries(data).forEach(([key, value]) => {
@@ -33,9 +43,22 @@ export function callModels<T extends PredictData["source"]>(modelId: string, dat
         }
     });
     const headers = accept ? { Accept: accept } : undefined;
-    const response = _api.post<ImageResponse | VideoResponse | Blob>(`model/${modelId}`, { body: formdata, headers });
-    if (accept === 'application/json') return response.json();
-    return response.blob();
+    
+    return _api.post<ImageResponse | VideoResponse | Blob>(`model/${modelId}`, { 
+        body: formdata, 
+        headers 
+    }).then(response => {
+        const duration = Date.now() - startTime;
+        if (DEBUG) {
+            console.log(`[API] 请求成功, 耗时: ${duration}ms`);
+        }
+        if (accept === 'application/json') return response.json();
+        return response.blob();
+    }).catch(error => {
+        const duration = Date.now() - startTime;
+        console.error(`[API] 请求失败, 耗时: ${duration}ms, 错误:`, error.name, error.message);
+        throw error;
+    });
 }
 
 export function getFile(filename: string) {
