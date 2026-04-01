@@ -356,7 +356,41 @@ async function handleImageResultData(uri: string, data: any) {
 }
 
 async function handleImageResultBlob(originalUri: string, resultUri: string) {
-    Message.warning("Not implemented yet")
+    console.log('[BlobRender] 显示图片输出模式');
+    console.log('[BlobRender] 原图URI:', originalUri);
+    console.log('[BlobRender] 结果图URI:', resultUri);
+    
+    // 清空 canvas，使用 img 标签显示
+    const o_canvas = originalCanvas.value!;
+    const r_canvas = resultCanvas.value!;
+    
+    // 隐藏 canvas，后面用 img 显示
+    if (o_canvas) o_canvas.style.display = 'none';
+    if (r_canvas) r_canvas.style.display = 'none';
+    
+    // 创建或更新结果图片元素
+    let resultImg = document.getElementById('result-image') as HTMLImageElement;
+    if (!resultImg) {
+        resultImg = document.createElement('img');
+        resultImg.id = 'result-image';
+        resultImg.className = 'max-w-full';
+        r_canvas?.parentElement?.appendChild(resultImg);
+    }
+    resultImg.src = resultUri;
+    resultImg.style.display = showOriginal.value ? 'none' : 'block';
+    
+    // 创建或更新原图图片元素
+    let originalImg = document.getElementById('original-image') as HTMLImageElement;
+    if (!originalImg) {
+        originalImg = document.createElement('img');
+        originalImg.id = 'original-image';
+        originalImg.className = 'max-w-full';
+        o_canvas?.parentElement?.appendChild(originalImg);
+    }
+    originalImg.src = originalUri;
+    originalImg.style.display = showOriginal.value ? 'block' : 'none';
+    
+    console.log('[BlobRender] 图片展示完成');
 }
 
 async function handleVideoResultData(originalUri: string, data: VideoResponse) {
@@ -373,19 +407,28 @@ async function handleVideoResultBlob(originalUri: string, resultUri: string) {
 function switchOriginal() {
     console.log('[ViewOriginal] 按钮被点击，当前状态:', showOriginal.value);
     
-    // 如果有原图 blob，优先在新窗口打开
-    if (originalBlob.value) {
-        const url = URL.createObjectURL(originalBlob.value);
-        console.log('[ViewOriginal] 打开原图:', url);
-        window.open(url, '_blank');
-        // 清理 URL 对象（延迟清理，确保图片加载完成）
-        setTimeout(() => URL.revokeObjectURL(url), 60000);
-        return;
+    // 切换显示状态
+    showOriginal.value = !showOriginal.value;
+    
+    // 处理图片输出模式（Blob 模式）
+    if (props.source === 'image' && resultBlob.value) {
+        const originalImg = document.getElementById('original-image') as HTMLImageElement;
+        const resultImg = document.getElementById('result-image') as HTMLImageElement;
+        
+        if (originalImg && resultImg) {
+            if (showOriginal.value) {
+                originalImg.style.display = 'block';
+                resultImg.style.display = 'none';
+            } else {
+                originalImg.style.display = 'none';
+                resultImg.style.display = 'block';
+            }
+            console.log('[ViewOriginal] 切换图片显示:', showOriginal.value ? '原图' : '结果图');
+            return;
+        }
     }
     
-    // 否则切换显示状态
-    console.log('[ViewOriginal] 无原图 blob，切换显示状态');
-    showOriginal.value = !showOriginal.value;
+    // 处理视频模式
     if (props.source === 'video' && resultBlob.value) {
         const prev = showOriginal.value ? resultVideo.value! : originalVideo.value!;
         const next = showOriginal.value ? originalVideo.value! : resultVideo.value!;
@@ -394,6 +437,16 @@ function switchOriginal() {
         let prevTime = prev.currentTime;
         next.currentTime = prevTime;
         if (!state) next.play();
+    }
+    
+    // 处理前端渲染模式（canvas）
+    if (props.source === 'image' && !resultBlob.value) {
+        const o_canvas = originalCanvas.value!;
+        const r_canvas = resultCanvas.value!;
+        if (o_canvas && r_canvas) {
+            o_canvas.style.display = showOriginal.value ? 'block' : 'none';
+            r_canvas.style.display = showOriginal.value ? 'none' : 'block';
+        }
     }
 }
 
