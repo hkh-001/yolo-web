@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {
-    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElButton,
+    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElButton, ElRadioGroup, ElRadio,
     type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
 } from 'element-plus';
 import { UploadFilled } from '@element-plus/icons-vue';
@@ -28,20 +28,16 @@ const maskCanvas = ref<HTMLCanvasElement | null>(null);
 // State
 const modelId = ref<string>("");
 const submitLoading = ref(false);
-const showOriginal = ref(false);
-const showDebugView = ref(false);  // 是否显示调试三栏视图
+const showOriginal = ref(false);  // 控制显示原图还是结果图
 const originalBlob = ref<Blob | null>(null);
+const originalUrl = ref<string>("");  // 缓存原图URL
 const resultData = ref<any>(null);
 const resultBlob = ref<Blob | null>(null);  // 存储图片格式的结果
 const maskOverlayUrl = ref<string>("");
 const hasResult = computed(() => resultData.value !== null || resultBlob.value !== null);
 
-// 输出格式选项
-const outputOptions = [
-    { name: "结果图输出（推荐）", id: "image", value: "image/jpeg" },
-    { name: "数据渲染（调试用）", id: "data", value: "application/json" }
-];
-const outputFormat = ref<string>("image/jpeg");  // 默认图片输出
+// 简化：只保留结果图输出模式（最稳定）
+const outputFormat = ref<string>("image/jpeg");
 
 const models = ref<ModelInfo[]>([]);
 
@@ -112,6 +108,8 @@ async function onSubmit() {
     
     // Store original blob
     originalBlob.value = new Blob([uploadedFile], { type: uploadedFile.type });
+    originalUrl.value = URL.createObjectURL(originalBlob.value);
+    console.log('[MaskSubmit] 原图已缓存，URL:', originalUrl.value.substring(0, 50) + '...');
     
     try {
         // Build form data
@@ -280,12 +278,18 @@ function switchOriginal() {
     showOriginal.value = !showOriginal.value;
 }
 
+// 切换显示原图/结果图
+function toggleOriginal() {
+    showOriginal.value = !showOriginal.value;
+    console.log('[MaskView] 切换到:', showOriginal.value ? '原图' : '结果图');
+}
+
 function clearResults() {
     resultData.value = null;
     resultBlob.value = null;
     maskOverlayUrl.value = "";
+    originalUrl.value = "";
     showOriginal.value = false;
-    showDebugView.value = false;
 }
 </script>
 
@@ -345,19 +349,6 @@ function clearResults() {
                     <ElInputNumber v-model="form.max_det" :min="1" :max="500" />
                 </div>
                 
-                <div class="*:my-2 flex items-center gap-4">
-                    <span class="text-sm">输出格式</span>
-                    <ElRadioGroup v-model="outputFormat" size="small">
-                        <ElRadio v-for="option in outputOptions" :key="option.id" :value="option.value">
-                            {{ option.name }}
-                        </ElRadio>
-                    </ElRadioGroup>
-                </div>
-                
-                <div class="text-xs text-gray-500 -mt-2 mb-2">
-                    提示："结果图输出"返回真实 Mask Overlay 图（推荐），"数据渲染"前端手动绘制（调试用）
-                </div>
-                
                 <!-- Submit Button -->
                 <div class="!mt-4 flex">
                     <ElButton type="primary" class="flex-1" @click="onSubmit" :loading="submitLoading">
@@ -375,38 +366,26 @@ function clearResults() {
     <div class="pt-8" v-show="hasResult">
         <div class="flex items-center gap-4 mb-4">
             <span class="text-xl font-bold">掩码结果</span>
-            <ElButton v-if="resultBlob" text size="small" bg @click="showOriginal = !showOriginal">
+            <ElButton v-if="resultBlob" text size="small" bg @click="toggleOriginal">
                 {{ showOriginal ? "显示结果图" : "显示原图" }}
             </ElButton>
-            <ElButton text size="small" bg @click="showDebugView = !showDebugView">
-                {{ showDebugView ? "隐藏调试视图" : "显示调试视图" }}
-            </ElButton>
         </div>
         
-        <!-- ===== 主结果区：单张 Overlay 结果图 ===== -->
+        <!-- ===== 主结果区：单张图（结果图或原图） ===== -->
         <div v-if="resultBlob" class="border rounded-lg p-4 mb-6">
-            <div class="text-sm font-bold mb-2 text-green-600">
+            <div class="text-sm font-bold mb-2" :class="showOriginal ? 'text-gray-600' : 'text-green-600'">
                 {{ showOriginal ? "原图" : "最终掩码结果（真实 Mask Overlay）" }}
             </div>
-            <img v-if="!showOriginal" :src="maskOverlayUrl" class="max-w-full" alt="掩码结果" />
-            <img v-else :src="URL.createObjectURL(originalBlob)" class="max-w-full" alt="原图" />
+            <!-- 使用 v-show 而不是 v-if，避免重新加载 -->
+            <img v-show="!showOriginal" :src="maskOverlayUrl" class="max-w-full" alt="掩码结果" />
+            <img v-show="showOriginal" :src="originalUrl" class="max-w-full" alt="原图" />
         </div>
         
-        <!-- ===== JSON 数据渲染视图 ===== -->
+        <!-- ===== JSON 数据渲染视图（备用） ===== -->
         <div v-else-if="resultData" class="border rounded-lg p-4 mb-6">
             <div class="text-sm font-bold mb-2 text-blue-600">前端渲染结果（数据模式）</div>
             <canvas ref="resultCanvas" class="max-w-full"></canvas>
         </div>
-        
-        <!-- ===== 调试视图：三栏（原图/Bbox/Mask） ===== -->
-        <div v-show="showDebugView" class="grid grid-cols-1 lg:grid-cols-3 gap-4 border-t pt-4 mt-4">
-            <div class="text-sm text-gray-500 col-span-3 mb-2">调试视图（仅开发调试用）</div>
-            
-            <!-- Original -->
-            <div class="border rounded-lg p-4">
-                <div class="text-sm font-bold mb-2 text-gray-500">原图</div>
-                <canvas ref="originalCanvas" class="max-w-full"></canvas>
-            </div>
             
             <!-- Detection Result -->
             <div class="border rounded-lg p-4">
