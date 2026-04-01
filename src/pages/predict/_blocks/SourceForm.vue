@@ -446,8 +446,8 @@ async function saveResults() {
                         :max="500" />
                 </div>
                 <div class="!my-0 *:my-2 *:mr-8 *:last:mr-0">
-                    <div class="inline-flex items-center gap-4 w-max">
-                        <span class="text-sm">启用半精度 FP16 推理</span>
+                    <div class="inline-flex items-center gap-4 w-max" title="FP16半精度推理可加速，但需GPU支持，CPU模式下无效">
+                        <span class="text-sm">启用半精度 FP16 推理 <small class="text-gray-400">(需GPU)</small></span>
                         <ElSwitch v-model="form.half" />
                     </div>
                     <div class="inline-flex items-center gap-4 w-max">
@@ -464,19 +464,23 @@ async function saveResults() {
                         <span class="text-sm">图像大小</span>
                         <ElInputNumber v-model="form.imgsz" :step="10" :min="16" :max="3656" />
                     </div>
+                    <!-- 
                     <div class="inline-flex items-center gap-4 w-max">
                         <span class="text-sm">批量大小</span>
                         <ElInputNumber v-model="form.batch" :min="1" :max="100" />
                     </div>
+                    -->
                     <div class="inline-flex items-center gap-4 w-max">
                         <span class="text-sm">最大检测次数</span>
                         <ElInputNumber v-model="form.max_det" :min="1" :max="500" />
                     </div>
                 </div>
+                <!-- 类别过滤功能暂未接入，隐藏
                 <div class="*:my-2">
                     <span class="text-sm">仅检测以下类别</span>
                     <ElInputTag v-model="form.classes" placeholder="输入并按下 Enter 以添加一个类别，留空表示全部" />
                 </div>
+                -->
                 <div class="*:my-2 flex items-center gap-4">
                     <span class="text-sm">输出处理方式</span>
                     <ElRadioGroup v-model="accept" size="small">
