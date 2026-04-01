@@ -221,7 +221,32 @@ async def predict_seg(
             
             # 添加掩码信息
             if r.masks is not None and i < len(r.masks):
+                mask = r.masks[i]
                 detection["has_mask"] = True
+                
+                # 提取掩码轮廓（简化版：返回掩码的 bounding box 和中心点）
+                try:
+                    mask_data = mask.data.cpu().numpy() if hasattr(mask, 'data') else mask
+                    if len(mask_data.shape) == 3:
+                        mask_data = mask_data[0]  # 取第一个通道
+                    
+                    # 找到 mask 的非零点
+                    y_indices, x_indices = np.where(mask_data > 0.5)
+                    if len(y_indices) > 0:
+                        detection["mask_bbox"] = {
+                            "x1": float(x_indices.min()),
+                            "y1": float(y_indices.min()),
+                            "x2": float(x_indices.max()),
+                            "y2": float(y_indices.max())
+                        }
+                        detection["mask_center"] = {
+                            "x": float(x_indices.mean()),
+                            "y": float(y_indices.mean())
+                        }
+                        detection["mask_area"] = int(len(y_indices))
+                except Exception as e:
+                    print(f"[SegModel] 掩码处理失败: {e}")
+                    detection["mask_bbox"] = detection["box"]  #  fallback 使用 bbox
             else:
                 detection["has_mask"] = False
             

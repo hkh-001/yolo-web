@@ -173,18 +173,18 @@ async function handleMaskResult(uri: string, data: any) {
             c.height = img.height;
         });
         
-        // Draw original
+        // ===== 1. 原图 - 只画原图 =====
         o_ctx.drawImage(img, 0, 0);
         
-        // Draw result with boxes
+        // ===== 2. 检测结果 - 原图 + Bbox =====
         r_ctx.drawImage(img, 0, 0);
         
-        // Draw masks if available
-        m_ctx.clearRect(0, 0, m_canvas.width, m_canvas.height);
+        // ===== 3. 掩码叠加 - 原图 + Mask 填充 + Bbox =====
         m_ctx.drawImage(img, 0, 0);
         
-        // Draw detections
-        const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"];
+        // 绘制检测框和 Mask
+        const colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", "#FFD93D", "#6BCB77"];
+        
         detections.forEach((det: any, index: number) => {
             const color = colors[index % colors.length];
             
@@ -199,30 +199,67 @@ async function handleMaskResult(uri: string, data: any) {
             const w = x2 - x1;
             const h = y2 - y1;
             
-            // Draw box on result canvas
+            // ===== 在检测结果画布上画 Bbox =====
             r_ctx.strokeStyle = color;
             r_ctx.lineWidth = 3;
             r_ctx.strokeRect(x1, y1, w, h);
             
-            // Draw label
-            r_ctx.fillStyle = color;
-            r_ctx.font = "bold 20px Arial";
+            // 画标签背景
             const label = `${det.name || 'unknown'} ${(det.conf || det.confidence || 0).toFixed(2)}`;
-            r_ctx.fillText(label, x1, y1 - 5);
+            r_ctx.font = "bold 18px Arial";
+            const textMetrics = r_ctx.measureText(label);
+            r_ctx.fillStyle = color + 'CC'; // 80% opacity
+            r_ctx.fillRect(x1, y1 - 25, textMetrics.width + 10, 25);
             
-            // Draw mask overlay if available
-            if (det.mask || det.masks) {
-                m_ctx.fillStyle = color + '40'; // 25% opacity
-                // If mask is available, draw it (simplified)
+            // 画标签文字
+            r_ctx.fillStyle = '#FFFFFF';
+            r_ctx.fillText(label, x1 + 5, y1 - 7);
+            
+            // ===== 在 Mask 画布上画 Mask 填充 + Bbox =====
+            // 1. 先画半透明填充（模拟 Mask）
+            if (det.has_mask || det.mask || det.masks) {
+                // 有 mask 数据，画半透明填充
+                m_ctx.fillStyle = color + '60'; // 37% opacity
                 m_ctx.fillRect(x1, y1, w, h);
+                
+                // 画 mask 边框（更粗）
+                m_ctx.strokeStyle = color;
+                m_ctx.lineWidth = 4;
+                m_ctx.strokeRect(x1, y1, w, h);
+                
+                // 画 "MASK" 标识
+                m_ctx.fillStyle = color;
+                m_ctx.font = "bold 14px Arial";
+                m_ctx.fillText("🎭 MASK", x1 + 5, y1 + h - 5);
+            } else {
+                // 没有 mask，只画 bbox
+                m_ctx.strokeStyle = color;
+                m_ctx.lineWidth = 3;
+                m_ctx.strokeRect(x1, y1, w, h);
             }
             
-            console.log(`[MaskRender] [${index}] ${det.name}: conf=${(det.conf || det.confidence || 0).toFixed(2)}`);
+            // 画标签（和结果图一样）
+            m_ctx.fillStyle = color + 'CC';
+            m_ctx.fillRect(x1, y1 - 25, textMetrics.width + 10, 25);
+            m_ctx.fillStyle = '#FFFFFF';
+            m_ctx.font = "bold 18px Arial";
+            m_ctx.fillText(label, x1 + 5, y1 - 7);
+            
+            console.log(`[MaskRender] [${index}] ${det.name}: conf=${(det.conf || det.confidence || 0).toFixed(2)}, has_mask=${det.has_mask || false}`);
         });
         
         console.log('[MaskRender] ========== 渲染完成 ==========');
     };
     img.src = uri;
+}
+
+// 刷新结果显示
+function refreshResult() {
+    console.log('[MaskRender] 手动刷新显示');
+    if (resultData.value && originalBlob.value) {
+        const url = URL.createObjectURL(originalBlob.value);
+        handleMaskResult(url, resultData.value);
+    }
 }
 
 function switchOriginal() {
@@ -308,38 +345,29 @@ function clearResults() {
     <div class="pt-8" v-show="hasResult">
         <div class="flex items-center gap-4 mb-4">
             <span class="text-xl font-bold">掩码结果</span>
-            <ElButton text size="small" bg :type="showOriginal ? 'primary' : ''" @click="switchOriginal">
-                {{ showOriginal ? "查看结果" : "查看原图" }}
+            <ElButton text size="small" bg @click="refreshResult">
+                刷新显示
             </ElButton>
         </div>
         
-        <!-- Canvas Display -->
+        <!-- Canvas Display - 同时显示三个视图 -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <!-- Original -->
             <div class="border rounded-lg p-4">
                 <div class="text-sm font-bold mb-2 text-gray-500">原图</div>
-                <canvas ref="originalCanvas" class="max-w-full" v-show="showOriginal"></canvas>
-                <div v-show="!showOriginal" class="text-gray-400 text-center py-8">
-                    点击"查看原图"显示
-                </div>
+                <canvas ref="originalCanvas" class="max-w-full"></canvas>
             </div>
             
             <!-- Detection Result -->
             <div class="border rounded-lg p-4">
-                <div class="text-sm font-bold mb-2 text-blue-500">检测结果</div>
-                <canvas ref="resultCanvas" class="max-w-full" v-show="!showOriginal"></canvas>
-                <div v-show="showOriginal" class="text-gray-400 text-center py-8">
-                    点击"查看结果"显示
-                </div>
+                <div class="text-sm font-bold mb-2 text-blue-500">检测结果 (Bbox)</div>
+                <canvas ref="resultCanvas" class="max-w-full"></canvas>
             </div>
             
             <!-- Mask Overlay -->
             <div class="border rounded-lg p-4">
-                <div class="text-sm font-bold mb-2 text-green-500">掩码叠加</div>
-                <canvas ref="maskCanvas" class="max-w-full" v-show="!showOriginal"></canvas>
-                <div v-show="showOriginal" class="text-gray-400 text-center py-8">
-                    点击"查看结果"显示
-                </div>
+                <div class="text-sm font-bold mb-2 text-green-500">掩码叠加 (Mask)</div>
+                <canvas ref="maskCanvas" class="max-w-full"></canvas>
             </div>
         </div>
         
