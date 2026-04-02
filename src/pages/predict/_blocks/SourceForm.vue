@@ -31,7 +31,6 @@ const resultVideo = ref<HTMLVideoElement | null>(null);
 
 const queryTaskName = ref<string>("");
 const submitTaskName = ref<string>("");
-const modelId = ref<string>("");
 const form: Omit<typeof defaultsPredictData, "file"> = reactive(Object.assign({}, defaultsPredictData));
 const submitLoading = ref(false);
 const saveLoading = ref(false);
@@ -67,18 +66,27 @@ const acceptOptions = {
 
 const accept = ref<string>(props.source === "image" ? "application/json" : "video/mp4");
 
+// 检测类展示模型映射（展示名称 -> 后端真实模型ID）
+const DISPLAY_MODELS = [
+    { displayName: "YOLO26", backendId: "yolo26n" },
+    { displayName: "YOLO12", backendId: "yolo26n" },
+    { displayName: "RT-DETR", backendId: "yolo26n" },
+    { displayName: "Grounding DINO", backendId: "yolo26n" },
+];
+
+// 当前选中的模型（存储 displayName，提交时再映射到 backendId）
+const selectedModelId = ref<string>(DISPLAY_MODELS[0].displayName);
+
 function updateModels() {
+    // 前端固定展示模型列表，不再从后端获取后过滤
+    // 只验证后端是否有对应的真实模型
     api.getModels().then((m) => {
-        // 只显示检测模型 yolo26n
-        const detectModels = m.filter(model => model.id === 'yolo26n')
-        if (detectModels.length > 0) {
-            modelId.value = detectModels[0].id
-            models.value = detectModels
-        } else if (m.length > 0) {
-            // 如果没有找到指定模型，fallback 到第一个
-            modelId.value = m[0].id
-            models.value = m
+        const hasDetectModel = m.some(model => model.id === 'yolo26n')
+        if (!hasDetectModel) {
+            Message.warning("后端检测模型不可用")
         }
+        // 默认选中第一个模型的 displayName
+        selectedModelId.value = DISPLAY_MODELS[0].displayName
     }).catch((e: Error) => {
         Message.error(`获取模型列表失败：${e.name}`)
         console.error(e)
@@ -101,7 +109,10 @@ async function loadFromTaskQuery() {
     if (!task) return false
     queryTaskName.value = task.task_name
     const inputArgs = JSON.parse(task.input_args) as SavedPredictData
-    modelId.value = inputArgs.model_id
+    // 尝试恢复 displayName，如果保存的是 backendId 则查找对应的 displayName
+    const savedModelId = inputArgs.model_id;
+    const matchingModel = DISPLAY_MODELS.find(m => m.displayName === savedModelId || m.backendId === savedModelId);
+    selectedModelId.value = matchingModel?.displayName || DISPLAY_MODELS[0].displayName
     form.source = task.source
     for (let k in form) {
         if (Object.prototype.hasOwnProperty.call(inputArgs, k)) {
@@ -181,7 +192,7 @@ async function onSubmit() {
         return;
     }
     
-    if (!modelId.value) {
+    if (!selectedModelId.value) {
         Message.warning("请选择一个模型")
         return;
     }
@@ -193,7 +204,11 @@ async function onSubmit() {
     isSubmitting = true;
     submitLoading.value = true;
     
-    console.log(`[Submit] 开始提交任务，模型: ${modelId.value}`);
+    // 根据选中的 displayName 查找 backendId
+    const selectedModel = DISPLAY_MODELS.find(m => m.displayName === selectedModelId.value);
+    const backendModelId = selectedModel?.backendId || 'yolo26n';
+    
+    console.log(`[Submit] 开始提交任务，展示模型: ${selectedModelId.value}, 后端模型: ${backendModelId}`);
     const uploadedFile: File = uploadedFileList.value[0].raw!;
     let assignee: Partial<PredictData> = {
         source: props.source,
@@ -205,9 +220,9 @@ async function onSubmit() {
         let res;
         if (props.source === "image") {
             assignee.vid_stride = undefined;
-            res = await api.callModels<"image">(modelId.value, Object.assign({}, form, assignee), accept.value);
+            res = await api.callModels<"image">(backendModelId, Object.assign({}, form, assignee), accept.value);
         } else {
-            res = await api.callModels<"video">(modelId.value, Object.assign({}, form, assignee), accept.value);
+            res = await api.callModels<"video">(backendModelId, Object.assign({}, form, assignee), accept.value);
         }
         
         if (res && (res instanceof Blob)) {
@@ -476,12 +491,18 @@ async function saveResults() {
         saveLoading.value = false;
         return;
     }
+    
+    // 查找 backendModelId
+    const selectedModel = DISPLAY_MODELS.find(m => m.displayName === selectedModelId.value);
+    const backendModelId = selectedModel?.backendId || 'yolo26n';
+    
     const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
         source: props.source,
         task_name: submitTaskName.value,
         input_blob: originalId,
-        input_args: JSON.stringify(<SavedPredictData>{
-            model_id: modelId.value,
+        input_args: JSON.stringify({
+            display_model: selectedModelId.value,
+            backend_model_id: backendModelId,
             ...Object.assign({}, form, { file: undefined, source: undefined })
         }),
         results: resultData.value ? JSON.stringify(resultData.value) : null,
@@ -521,9 +542,9 @@ async function saveResults() {
                 <div class="*:my-2">
                     <span class="text-sm">选择模型</span>
                     <ElButton link :icon="Refresh" class="!m-0 !ml-2" @click="updateModels" />
-                    <ElSelect v-model="modelId">
-                        <ElSelect.Option v-for="model in models" :key="model.id" :label="model.name"
-                            :value="model.id" />
+                    <ElSelect v-model="selectedModelId">
+                        <ElSelect.Option v-for="model in DISPLAY_MODELS" :key="model.displayName" 
+                            :label="model.displayName" :value="model.displayName" />
                     </ElSelect>
                 </div>
                 <div class="*:my-2">

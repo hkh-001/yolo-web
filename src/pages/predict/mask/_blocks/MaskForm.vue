@@ -27,7 +27,7 @@ const resultCanvas = ref<HTMLCanvasElement | null>(null);
 const maskCanvas = ref<HTMLCanvasElement | null>(null);
 
 // State
-const modelId = ref<string>("");
+
 const submitLoading = ref(false);
 const showOriginal = ref(false);  // 控制显示原图还是结果图
 const originalBlob = ref<Blob | null>(null);
@@ -58,23 +58,31 @@ const form = reactive({
     agnostic_nms: false,
 });
 
+// 分割类展示模型映射（展示名称 -> 后端真实模型ID）
+const DISPLAY_MODELS = [
+    { displayName: "YOLO26-Seg", backendId: "yolo26-seg" },
+    { displayName: "SAM 2", backendId: "yolo26-seg" },
+    { displayName: "Grounded SAM 2", backendId: "yolo26-seg" },
+    { displayName: "Florence-2 + SAM 2", backendId: "yolo26-seg" },
+];
+
+// 当前选中的模型（存储 displayName，提交时再映射到 backendId）
+const selectedModelId = ref<string>(DISPLAY_MODELS[0].displayName);
+
 // Load models on mount
 onMounted(() => {
     updateModels();
 });
 
 function updateModels() {
+    // 前端固定展示模型列表，验证后端是否有对应的真实模型
     api.getModels().then((m) => {
-        // 只显示分割模型 yolo26-seg
-        const segModels = m.filter(model => model.id === 'yolo26-seg');
-        if (segModels.length > 0) {
-            modelId.value = segModels[0].id;
-            models.value = segModels;
-        } else if (m.length > 0) {
-            // 如果没有找到指定模型，fallback 到第一个
-            modelId.value = m[0].id;
-            models.value = m;
+        const hasSegModel = m.some(model => model.id === 'yolo26-seg')
+        if (!hasSegModel) {
+            Message.warning("后端分割模型不可用")
         }
+        // 默认选中第一个模型的 displayName
+        selectedModelId.value = DISPLAY_MODELS[0].displayName
     }).catch((e: Error) => {
         Message.error(`获取模型列表失败：${e.name}`)
         console.error(e)
@@ -97,7 +105,7 @@ async function onSubmit() {
         return;
     }
     
-    if (!modelId.value) {
+    if (!selectedModelId.value) {
         Message.warning("请选择一个模型")
         return;
     }
@@ -109,7 +117,11 @@ async function onSubmit() {
     isSubmitting = true;
     submitLoading.value = true;
     
-    console.log(`[MaskSubmit] 开始提交掩码任务，模型: ${modelId.value}`);
+    // 根据选中的 displayName 查找 backendId
+    const selectedModel = DISPLAY_MODELS.find(m => m.displayName === selectedModelId.value);
+    const backendModelId = selectedModel?.backendId || 'yolo26-seg';
+    
+    console.log(`[MaskSubmit] 开始提交掩码任务，展示模型: ${selectedModelId.value}, 后端模型: ${backendModelId}`);
     const uploadedFile: File = uploadedFileList.value[0].raw!;
     
     // Store original blob
@@ -127,7 +139,7 @@ async function onSubmit() {
         
         // Call API with selected output format
         console.log(`[MaskSubmit] 请求格式: ${outputFormat.value}`);
-        const res = await api.callModels<"image">(modelId.value, assignee, outputFormat.value);
+        const res = await api.callModels<"image">(backendModelId, assignee, outputFormat.value);
         
         console.log('[MaskSubmit] 收到响应类型:', res instanceof Blob ? 'Blob(图片)' : 'JSON');
         
@@ -317,12 +329,18 @@ async function saveResults() {
         saveLoading.value = false;
         return;
     }
+    
+    // 查找 backendModelId
+    const selectedModel = DISPLAY_MODELS.find(m => m.displayName === selectedModelId.value);
+    const backendModelId = selectedModel?.backendId || 'yolo26-seg';
+    
     const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
         source: "mask",
         task_name: submitTaskName.value,
         input_blob: originalId,
         input_args: JSON.stringify({
-            model_id: modelId.value,
+            display_model: selectedModelId.value,
+            backend_model_id: backendModelId,
             ...form,
             task: "segmentation"
         }),
@@ -357,9 +375,9 @@ async function saveResults() {
                 <!-- Model Selection -->
                 <div class="*:my-2">
                     <span class="text-sm">选择分割模型</span>
-                    <ElSelect v-model="modelId" class="w-full">
-                        <ElSelect.Option v-for="model in models" :key="model.id" :label="model.name"
-                            :value="model.id" />
+                    <ElSelect v-model="selectedModelId" class="w-full">
+                        <ElSelect.Option v-for="model in DISPLAY_MODELS" :key="model.displayName" 
+                            :label="model.displayName" :value="model.displayName" />
                     </ElSelect>
                 </div>
                 

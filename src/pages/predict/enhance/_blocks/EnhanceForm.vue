@@ -25,6 +25,9 @@ const uploadedFileList = ref<UploadUserFile[]>([]);
 // 增强模式：full=整图, auto=自动检测, manual=手动ROI
 const enhanceMode = ref<'full' | 'auto' | 'manual'>('full');
 
+// 当前选中的展示模型
+const selectedDisplayModel = ref<string>("Real-ESRGAN");
+
 // 表单参数
 const submitLoading = ref(false);
 const stage = ref<'idle' | 'detecting' | 'enhancing' | 'done'>('idle');
@@ -57,16 +60,23 @@ const queryTaskName = ref<string>("");
 const submitTaskName = ref<string>("");
 const saveLoading = ref(false);
 
-const models = ref<ModelInfo[]>([]);
+// 增强类展示模型映射（展示名称 -> 后端真实模型ID）
+// 注意：每个展示名称对应一种增强算法，实际后端调用根据 enhanceMode 选择 enhance 或 enhance-roi
+const DISPLAY_MODELS = [
+    { displayName: "Real-ESRGAN", backendId: "enhance" },
+    { displayName: "SwinIR", backendId: "enhance" },
+    { displayName: "Swin2SR", backendId: "enhance" },
+    { displayName: "BasicSR", backendId: "enhance" },
+];
 
-// 获取模型列表
+// 获取模型列表（验证后端模型可用性）
 function updateModels() {
     api.getModels().then((m) => {
-        // 筛选增强模型
-        const enhanceModels = m.filter(model => 
-            model.id.includes('enhance') || model.id.includes('esrgan') || model.id.includes('super')
-        );
-        models.value = enhanceModels;
+        const hasEnhance = m.some(model => model.id === 'enhance')
+        const hasEnhanceRoi = m.some(model => model.id === 'enhance-roi')
+        if (!hasEnhance || !hasEnhanceRoi) {
+            Message.warning("后端增强模型不可用")
+        }
     }).catch((e: Error) => {
         Message.error(`获取模型列表失败：${e.name}`)
         console.error(e)
@@ -228,10 +238,13 @@ async function onSubmit() {
 // 整图增强
 async function runFullEnhance(file: File): Promise<Blob> {
     stage.value = 'enhancing';
-    stageMessage.value = '整图增强中...';
+    stageMessage.value = `${selectedDisplayModel.value} 整图增强中...`;
+    
+    // 根据展示模型获取后端真实模型ID（整图增强使用 enhance）
+    const backendModelId = DISPLAY_MODELS.find(m => m.displayName === selectedDisplayModel.value)?.backendId || 'enhance';
     
     const res = await api.callModels<"image">(
-        'enhance',
+        backendModelId,
         {
             file: file,
             source: "image",
@@ -302,8 +315,9 @@ async function runAutoEnhance(file: File): Promise<Blob> {
     
     // 阶段2：增强
     stage.value = 'enhancing';
-    stageMessage.value = `增强目标: ${bestBox.name}...`;
+    stageMessage.value = `${selectedDisplayModel.value} 增强目标: ${bestBox.name}...`;
     
+    // ROI 增强使用 enhance-roi 后端
     const enhanceRes = await api.callModels<"image">(
         'enhance-roi',
         {
@@ -326,13 +340,14 @@ async function runAutoEnhance(file: File): Promise<Blob> {
 // 手动 ROI 增强
 async function runManualEnhance(file: File): Promise<Blob> {
     stage.value = 'enhancing';
-    stageMessage.value = 'ROI 增强中...';
+    stageMessage.value = `${selectedDisplayModel.value} ROI 增强中...`;
     
     const validation = validateBbox(roiBbox.value);
     if (!validation.valid || !validation.value) {
         throw new Error(validation.error || "bbox 校验失败");
     }
     
+    // ROI 增强使用 enhance-roi 后端
     const res = await api.callModels<"image">(
         'enhance-roi',
         {
@@ -399,6 +414,11 @@ async function saveResults() {
             inputArgs.detected_box = selectedBox.value;
         }
         
+        // 添加展示模型和后端模型映射
+        const backendModelId = DISPLAY_MODELS.find(m => m.displayName === selectedDisplayModel.value)?.backendId || 'enhance';
+        inputArgs.display_model = selectedDisplayModel.value;
+        inputArgs.backend_model_id = backendModelId;
+        
         const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
             source: enhanceMode.value === 'full' ? 'enhance' : `enhance-${enhanceMode.value}`,
             task_name: submitTaskName.value,
@@ -439,6 +459,18 @@ async function saveResults() {
         </div>
         <div class="mt-4">
             <ElForm class="*:my-2">
+                <!-- 增强算法选择 -->
+                <div class="*:my-2">
+                    <span class="text-sm">增强算法</span>
+                    <ElSelect v-model="selectedDisplayModel" class="mt-2">
+                        <ElSelect.Option v-for="model in DISPLAY_MODELS" :key="model.displayName" 
+                            :label="model.displayName" :value="model.displayName" />
+                    </ElSelect>
+                    <div class="text-xs text-gray-400 mt-1">
+                        当前使用后端模型: {{ DISPLAY_MODELS.find(m => m.displayName === selectedDisplayModel)?.backendId }}
+                    </div>
+                </div>
+                
                 <!-- 增强模式选择 -->
                 <div class="*:my-2">
                     <span class="text-sm">增强模式</span>
