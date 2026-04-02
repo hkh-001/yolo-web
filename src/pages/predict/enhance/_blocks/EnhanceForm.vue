@@ -1,12 +1,14 @@
 <script lang="ts" setup>
 import {
-    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElButton, ElInputNumber,
+    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElButton, ElInputNumber, ElInput, ElPopconfirm,
     type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
 } from 'element-plus';
-import { Delete, Refresh, UploadFilled } from '@element-plus/icons-vue';
+import { Delete, Refresh, UploadFilled, FolderAdd } from '@element-plus/icons-vue';
 import * as api from "@/utils/api"
 import type { ModelInfo } from '@/utils/api';
+import type { Task } from '@/utils/api/task';
 import { Message } from '@/utils/message';
+import { setURLParams } from '@/utils/url';
 
 import { computed, onMounted, reactive, ref } from 'vue'
 import { preventElemmentSSRError } from '@/utils/ssr';
@@ -37,6 +39,11 @@ const enhancedBlob = ref<Blob | null>(null);
 const showOriginal = ref(false);
 const processingTime = ref<number>(0);
 const hasResult = computed(() => !!enhancedUrl.value);
+
+// 任务保存状态
+const queryTaskName = ref<string>("");
+const submitTaskName = ref<string>("");
+const saveLoading = ref(false);
 
 const models = ref<ModelInfo[]>([]);
 
@@ -165,6 +172,64 @@ function downloadResult() {
     link.download = `enhanced_${Date.now()}.jpg`;
     link.click();
 }
+
+function clearAll() {
+    clearResults();
+    submitTaskName.value = "";
+}
+
+async function saveResults() {
+    if (!submitTaskName.value) {
+        Message.warning("请输入任务名称");
+        return;
+    }
+    if (!enhancedBlob.value) {
+        Message.warning("没有可保存的结果");
+        return;
+    }
+    
+    saveLoading.value = true;
+    
+    try {
+        // 上传原图
+        const uploadedFile: File = uploadedFileList.value[0].raw!;
+        const originalBlob = new Blob([uploadedFile], { type: uploadedFile.type });
+        const originalId = await api.uploadFile(originalBlob).then(r => r.id);
+        
+        // 上传增强结果图
+        const resultId = await api.uploadFile(enhancedBlob.value).then(r => r.id);
+        
+        // 保存任务
+        const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
+            source: "enhance",
+            task_name: submitTaskName.value,
+            input_blob: originalId,
+            input_args: JSON.stringify({
+                model_id: modelId.value,
+                scale: form.scale,
+                denoise: form.denoise
+            }),
+            results: JSON.stringify({
+                processing_time: processingTime.value,
+                original_size: { width: 0, height: 0 },  // Will be filled if available
+                enhanced_size: { width: 0, height: 0 }
+            }),
+            results_blob: resultId,
+        };
+        
+        const task_id = await api.saveTask(uploadObject).then(r => r.task_id);
+        
+        if (task_id) {
+            setURLParams({ task: task_id }, true);
+            Message.success("任务保存成功");
+        }
+    } catch (e: any) {
+        console.error('[Enhance] 保存失败:', e);
+        Message.error(`保存失败: ${e.message || '未知错误'}`);
+    } finally {
+        saveLoading.value = false;
+    }
+}
 </script>
 
 <template>
@@ -225,9 +290,25 @@ function downloadResult() {
                     <ElButton type="primary" class="flex-1" @click="onSubmit" :loading="submitLoading">
                         {{ submitLoading ? '处理中...' : '开始增强' }}
                     </ElButton>
-                    <ElButton type="warning" plain :icon="Delete" @click="clearResults" v-show="hasResult">
+                    <ElButton type="warning" plain :icon="Delete" @click="clearAll" v-show="hasResult">
                         清除结果
                     </ElButton>
+                </div>
+                
+                <!-- 保存任务 -->
+                <div class="!mt-4 flex gap-2" v-show="hasResult">
+                    <ElInput v-model="submitTaskName" class="flex-1" placeholder="输入任务名称" />
+                    <ElPopconfirm 
+                        width="200" 
+                        :title="queryTaskName ? '确定保存该任务吗？这将不会覆盖原有任务' : '确定保存该任务吗?'"
+                        :hide-icon="true" 
+                        @confirm="saveResults">
+                        <template #reference>
+                            <ElButton type="primary" plain :icon="FolderAdd" :loading="saveLoading">
+                                保存任务
+                            </ElButton>
+                        </template>
+                    </ElPopconfirm>
                 </div>
             </ElForm>
         </div>

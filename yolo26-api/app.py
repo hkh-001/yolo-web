@@ -266,123 +266,145 @@ async def predict_seg(
     return Response(content=encoded.tobytes(), media_type="image/jpeg")
 
 
-# ========== 图像增强路由 ==========
+# ========== 图像增强路由 (Real-ESRGAN) ==========
 
-# 注：当前为基础增强模式（OpenCV 插值 + 降噪）
-# 如需 Real-ESRGAN 超分辨率，请安装：pip install realesrgan basicsr
-# 并下载模型文件到 weights/ 目录
+# 导入 Real-ESRGAN 模型定义（内嵌，无需安装 realesrgan/basicsr 包）
+from realesrgan_model import get_realesrgan_model, RealESRGANer
 
 ENHANCE_MAX_SIZE = 2048  # 最大输入尺寸限制
 
-def basic_enhance(img: np.ndarray, scale: int = 2, denoise: float = 0) -> np.ndarray:
-    """
-    基础图像增强（OpenCV 实现）
-    
-    Args:
-        img: 输入图像 (BGR格式)
-        scale: 放大倍数 (1-4)
-        denoise: 降噪强度 (0-1)
-    
-    Returns:
-        增强后的图像
-    """
-    h, w = img.shape[:2]
-    
-    # 限制最大尺寸
-    if max(h, w) > ENHANCE_MAX_SIZE:
-        scale_factor = ENHANCE_MAX_SIZE / max(h, w)
-        new_w, new_h = int(w * scale_factor), int(h * scale_factor)
-        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-        print(f"[Enhance] 图片尺寸过大，已缩放至 {new_w}x{new_h}")
-    
-    # 放大处理
-    if scale > 1:
-        h, w = img.shape[:2]
-        new_w, new_h = w * scale, h * scale
-        # 使用 Lanczos 插值（比双线性更好）
-        img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
-        print(f"[Enhance] 放大 {scale}x -> {new_w}x{new_h}")
-    
-    # 降噪处理
-    if denoise > 0:
-        # 转换为 PIL Image 进行降噪
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        pil_img = Image.fromarray(img_rgb)
-        
-        # 使用中值滤波降噪
-        filter_size = int(3 + denoise * 4)  # 3-7 的滤波器大小
-        if filter_size % 2 == 0:
-            filter_size += 1
-        
-        pil_img = pil_img.filter(ImageFilter.MedianFilter(size=filter_size))
-        
-        # 可选：轻微锐化
-        if denoise < 0.5:
-            enhancer = ImageFilter.UnsharpMask(radius=2, percent=100, threshold=3)
-            pil_img = pil_img.filter(enhancer)
-        
-        # 转回 OpenCV 格式
-        img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-        print(f"[Enhance] 降噪处理完成 (强度: {denoise:.2f})")
-    
-    return img
+# Real-ESRGAN 模型配置
+REALESRGAN_MODEL_PATH = "weights/RealESRGAN_x4plus.pth"
+REALESRGAN_SCALE = 4  # x4plus 模型固定输出 4x
+
+# 全局模型实例（启动时预加载）
+_realesrgan_model = None
+
+def get_model():
+    """获取 RealESRGAN 模型实例（单例模式）"""
+    global _realesrgan_model
+    if _realesrgan_model is None:
+        print("[RealESRGAN] 正在加载模型，请稍候...")
+        _realesrgan_model = get_realesrgan_model(
+            model_path=REALESRGAN_MODEL_PATH,
+            scale=REALESRGAN_SCALE,
+            tile=512  # 使用 512x512 tiles 避免大图爆显存
+        )
+        print("[RealESRGAN] 模型加载完成")
+    return _realesrgan_model
+
+# 预加载 Real-ESRGAN 模型（避免首次请求超时）
+print("[RealESRGAN] 预加载 Real-ESRGAN 模型...")
+try:
+    get_model()
+    print("[RealESRGAN] 预加载完成，服务已就绪")
+except Exception as e:
+    print(f"[RealESRGAN] 预加载失败: {e}")
+    print("[RealESRGAN] 将在首次请求时尝试加载")
 
 @app.post("/model/enhance")
 async def predict_enhance(
     request: Request,
     file: UploadFile = File(...),
     source: str = Form("image"),
-    scale: int = Form(2),
+    scale: int = Form(4),  # 默认 4x，与 RealESRGAN_x4plus 对应
     denoise: float = Form(0),
 ):
     """
-    图像增强接口
+    图像增强接口（Real-ESRGAN 超分辨率）
     
     参数:
-        scale: 放大倍数 (1-4)
-        denoise: 降噪强度 (0.0-1.0)
+        scale: 目标放大倍数 (1-4)，模型输出固定 4x，其他尺寸会再缩放
+        denoise: 降噪强度 (0.0-1.0)，在神经网络增强后作为后处理
     """
     print(f"\n{'='*60}")
-    print(f"[Enhance] ⬅️⬅️⬅️ 收到增强请求: {datetime.now()}")
-    print(f"[Enhance] 文件: {file.filename if file else 'None'}, 缩放: {scale}x, 降噪: {denoise}")
+    print(f"[RealESRGAN] === 收到增强请求: {datetime.now()} ===")
+    print(f"[RealESRGAN] 文件: {file.filename if file else 'None'}, 目标缩放: {scale}x")
     print(f"{'='*60}\n")
     
     start_time = time.time()
     
     if source != "image":
+        print("[RealESRGAN] 错误: 不支持的 source 类型")
         return JSONResponse(
             {"error": "当前版本只支持 image，不支持 video"},
             status_code=400
         )
     
     # 验证参数
-    scale = max(1, min(4, int(scale)))  # 限制 1-4
-    denoise = max(0, min(1, float(denoise)))  # 限制 0-1
+    target_scale = max(1, min(4, int(scale)))  # 目标缩放 1-4
+    denoise = max(0, min(1, float(denoise)))  # 降噪强度 0-1
+    print(f"[RealESRGAN] 参数验证通过: target_scale={target_scale}, denoise={denoise}")
     
     try:
         # 读取图片
+        print("[RealESRGAN] 步骤 1/6: 读取上传文件...")
         data = await file.read()
-        print(f"[Enhance] 文件读取完成: {len(data)} bytes")
+        print(f"[RealESRGAN] 步骤 1/6 完成: 读取 {len(data)} bytes")
         
+        print("[RealESRGAN] 步骤 2/6: 解码图片...")
         arr = np.frombuffer(data, np.uint8)
         img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         
         if img is None:
+            print("[RealESRGAN] 错误: cv2.imdecode 返回 None")
             raise HTTPException(status_code=400, detail="无法解析上传图片")
         
         orig_h, orig_w = img.shape[:2]
-        print(f"[Enhance] 原图尺寸: {orig_w}x{orig_h}")
+        print(f"[RealESRGAN] 步骤 2/6 完成: 原图尺寸 {orig_w}x{orig_h}")
         
-        # 执行增强
-        enhanced_img = basic_enhance(img, scale=scale, denoise=denoise)
+        # 限制最大输入尺寸（避免显存/内存不足）
+        if max(orig_h, orig_w) > ENHANCE_MAX_SIZE:
+            print(f"[RealESRGAN] 图片尺寸过大，需要预缩放")
+            scale_factor = ENHANCE_MAX_SIZE / max(orig_h, orig_w)
+            new_w, new_h = int(orig_w * scale_factor), int(orig_h * scale_factor)
+            img = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+            orig_h, orig_w = new_h, new_w
+            print(f"[RealESRGAN] 预缩放完成: {orig_w}x{orig_h}")
+        
+        # 获取模型并执行 Real-ESRGAN 推理
+        print("[RealESRGAN] 步骤 3/6: 获取模型实例...")
+        model = get_model()
+        print(f"[RealESRGAN] 步骤 3/6 完成: 模型设备={model.device}")
+        
+        print("[RealESRGAN] 步骤 4/6: 开始神经网络推理...")
+        inference_start = time.time()
+        
+        # Real-ESRGAN 推理（固定输出 4x）
+        enhanced_img = model.enhance(img, outscale=REALESRGAN_SCALE)
+        
+        inference_time = time.time() - inference_start
+        print(f"[RealESRGAN] 步骤 4/6 完成: 推理耗时 {inference_time:.2f}s")
+        
+        # 如果目标 scale 不是 4，需要再缩放
+        if target_scale != REALESRGAN_SCALE:
+            h4, w4 = enhanced_img.shape[:2]
+            target_w = int(orig_w * target_scale)
+            target_h = int(orig_h * target_scale)
+            enhanced_img = cv2.resize(enhanced_img, (target_w, target_h), interpolation=cv2.INTER_LANCZOS4)
+            print(f"[RealESRGAN] 从 4x ({w4}x{h4}) 缩放到目标 {target_scale}x ({target_w}x{target_h})")
+        
+        # 可选：后处理降噪（PIL）
+        if denoise > 0:
+            print(f"[RealESRGAN] 应用后处理降噪 (强度: {denoise:.2f})...")
+            img_rgb = cv2.cvtColor(enhanced_img, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(img_rgb)
+            filter_size = int(3 + denoise * 4)
+            if filter_size % 2 == 0:
+                filter_size += 1
+            pil_img = pil_img.filter(ImageFilter.MedianFilter(size=filter_size))
+            if denoise < 0.5:
+                enhancer = ImageFilter.UnsharpMask(radius=2, percent=100, threshold=3)
+                pil_img = pil_img.filter(enhancer)
+            enhanced_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
         
         new_h, new_w = enhanced_img.shape[:2]
         process_time = time.time() - start_time
         
-        print(f"[Enhance] 增强完成: {new_w}x{new_h}, 耗时: {process_time:.2f}s")
+        print(f"[RealESRGAN] 推理完成: 神经网络耗时 {inference_time:.2f}s, 总耗时 {process_time:.2f}s")
+        print(f"[RealESRGAN] 输出尺寸: {new_w}x{new_h}")
         
         # 编码为 JPEG
-        # 根据输出尺寸调整质量
         quality = 95 if max(new_w, new_h) < 2000 else 90
         encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
         ok, encoded = cv2.imencode(".jpg", enhanced_img, encode_params)
@@ -390,20 +412,21 @@ async def predict_enhance(
         if not ok:
             raise HTTPException(status_code=500, detail="结果图编码失败")
         
-        print(f"[Enhance] 输出图片: {len(encoded.tobytes()) / 1024:.1f} KB")
+        print(f"[RealESRGAN] 输出图片: {len(encoded.tobytes()) / 1024:.1f} KB")
         
         return Response(
             content=encoded.tobytes(), 
             media_type="image/jpeg",
             headers={
                 "X-Process-Time": str(process_time),
+                "X-Inference-Time": str(inference_time),
                 "X-Original-Size": f"{orig_w}x{orig_h}",
                 "X-Enhanced-Size": f"{new_w}x{new_h}"
             }
         )
         
     except Exception as e:
-        print(f"[Enhance] ❌ 处理失败: {e}")
+        print(f"[RealESRGAN] 处理失败: {e}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"增强处理失败: {str(e)}")

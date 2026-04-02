@@ -28,11 +28,20 @@ router.post('/model/:id', async (c) => {
     
     console.log(`[Backend] 目标: ${model.api_url}`);
     
-    // 克隆 body，避免流被消费
-    let bodyData: ArrayBuffer | null = null;
+    // 处理 body 转发
+    let bodyData: ArrayBuffer | Blob | null = null;
+    const contentType = c.req.header('content-type') || '';
+    
     try {
-        bodyData = await c.req.arrayBuffer();
-        console.log(`[Backend] Body 读取成功: ${bodyData.byteLength} bytes`);
+        if (contentType.includes('multipart/form-data')) {
+            // 对于 multipart/form-data，使用 blob 保持原始格式
+            bodyData = await c.req.blob();
+            console.log(`[Backend] Body 读取成功 (Blob): ${bodyData.size} bytes`);
+        } else {
+            // 其他类型使用 arrayBuffer
+            bodyData = await c.req.arrayBuffer();
+            console.log(`[Backend] Body 读取成功 (ArrayBuffer): ${bodyData.byteLength} bytes`);
+        }
     } catch (e) {
         console.error(`[Backend] ❌ Body 读取失败:`, e);
         return Response.json({
@@ -44,10 +53,10 @@ router.post('/model/:id', async (c) => {
     const header = new Headers();
     header.set('X-Api-Key', model.api_key);
     
-    // 复制 content-type
-    const contentType = c.req.header('content-type');
+    // 复制 content-type（multipart 会自动设置 boundary）
     if (contentType) {
         header.set('Content-Type', contentType);
+        console.log(`[Backend] Content-Type: ${contentType}`);
     }
     
     // 复制 accept（关键！决定 5000 返回 JSON 还是图片）
@@ -61,12 +70,13 @@ router.post('/model/:id', async (c) => {
         console.log(`[Backend] ➡️ 开始 fetch (超时 30s)...`);
         const fetchStart = Date.now();
         
-        // 使用 AbortController 实现超时
+        // 使用 AbortController 实现超时（Real-ESRGAN 可能需要更长时间）
         const controller = new AbortController();
+        const timeoutMs = modelId === 'enhance' ? 120000 : 30000; // enhance 模型 120 秒超时，其他 30 秒
         const timeoutId = setTimeout(() => {
-            console.error(`[Backend] ⏱️ fetch 超时，主动取消`);
+            console.error(`[Backend] ⏱️ fetch 超时 (${timeoutMs/1000}s)，主动取消`);
             controller.abort();
-        }, 30000); // 30 秒超时
+        }, timeoutMs);
         
         const response = await fetch(model.api_url, {
             method: 'POST',
@@ -107,9 +117,10 @@ router.post('/model/:id', async (c) => {
         console.error(`[Backend]    错误消息: ${error.message}`);
         
         if (error.name === 'AbortError') {
+            const timeoutSec = modelId === 'enhance' ? 120 : 30;
             return Response.json({
                 success: false,
-                message: '模型服务响应超时 (30s)',
+                message: `模型服务响应超时 (${timeoutSec}s)`,
                 detail: '请检查模型服务是否正常启动，或模型是否正在加载中'
             }, { status: 504 });
         }
