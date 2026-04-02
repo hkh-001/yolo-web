@@ -10,6 +10,7 @@ const taskList = ref<TaskList & { source_name: string }[]>([]);
 const categoryMap = {
     "image": "图像识别",
     "video": "视频识别",
+    "mask": "掩码生成",
 } as const;
 
 async function updateTaskList() {

@@ -1,15 +1,16 @@
 <script lang="ts" setup>
 import {
-    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElButton, ElRadioGroup, ElRadio,
+    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElInput, ElButton, ElRadioGroup, ElRadio, ElPopconfirm,
     type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
 } from 'element-plus';
-import { UploadFilled } from '@element-plus/icons-vue';
+import { UploadFilled, FolderAdd } from '@element-plus/icons-vue';
 import { Message } from '@/utils/message';
 import { setURLParams } from '@/utils/url';
 import { preventElemmentSSRError } from '@/utils/ssr';
 import { computed, onMounted, reactive, ref } from 'vue'
 import * as api from "@/utils/api"
 import type { ModelInfo } from '@/utils/api';
+import type { Task } from '@/utils/api/task';
 
 preventElemmentSSRError()
 
@@ -35,6 +36,11 @@ const resultData = ref<any>(null);
 const resultBlob = ref<Blob | null>(null);  // 存储图片格式的结果
 const maskOverlayUrl = ref<string>("");
 const hasResult = computed(() => resultData.value !== null || resultBlob.value !== null);
+
+// 任务保存状态
+const queryTaskName = ref<string>("");
+const submitTaskName = ref<string>("");
+const saveLoading = ref(false);
 
 // 简化：只保留结果图输出模式（最稳定）
 const outputFormat = ref<string>("image/jpeg");
@@ -290,6 +296,49 @@ function clearResults() {
     maskOverlayUrl.value = "";
     originalUrl.value = "";
     showOriginal.value = false;
+    submitTaskName.value = "";
+}
+
+async function saveResults() {
+    if (!submitTaskName.value) {
+        Message.warning("请输入任务名称")
+        return;
+    }
+    saveLoading.value = true;
+    const [originalId, resultId] = await Promise.all([
+        api.uploadFile(originalBlob.value!).then(r => r.id),
+        resultBlob.value ? api.uploadFile(resultBlob.value).then(r => r.id) : Promise.resolve(null)
+    ]).catch((e: Error) => {
+        Message.error(`上传失败：${e.name}`)
+        console.error(e)
+        return [null, null] as [null, null]
+    })
+    if (!originalId || (resultBlob.value && !resultId)) {
+        saveLoading.value = false;
+        return;
+    }
+    const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
+        source: "mask",
+        task_name: submitTaskName.value,
+        input_blob: originalId,
+        input_args: JSON.stringify({
+            model_id: modelId.value,
+            ...form,
+            task: "segmentation"
+        }),
+        results: resultData.value ? JSON.stringify(resultData.value) : null,
+        results_blob: resultId,
+    }
+    const task_id = await api.saveTask(uploadObject).then(r => r.task_id).catch((e: Error) => {
+        Message.error(`保存任务失败：${e.name}`)
+        console.error(e)
+        return null
+    })
+    if (task_id) {
+        setURLParams({ task: task_id }, true)
+        Message.success(`任务保存成功`)
+    }
+    saveLoading.value = false;
 }
 </script>
 
@@ -357,6 +406,17 @@ function clearResults() {
                     <ElButton type="warning" plain @click="clearResults" v-show="hasResult">
                         清除结果
                     </ElButton>
+                </div>
+                <!-- Save Task Button -->
+                <div class="!mt-4 flex" v-show="hasResult">
+                    <ElInput v-model="submitTaskName" class="flex-1" placeholder="输入任务名称" />
+                    <ElPopconfirm width="200" :title="queryTaskName ? '确定保存该任务吗？这将不会覆盖原有任务' : '确定保存该任务吗？'"
+                        :hide-icon="true" @confirm="saveResults">
+                        <template #reference>
+                            <ElButton type="primary" plain :icon="FolderAdd" :loading="saveLoading">
+                                保存任务</ElButton>
+                        </template>
+                    </ElPopconfirm>
                 </div>
             </ElForm>
         </div>
