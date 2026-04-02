@@ -432,6 +432,167 @@ async def predict_enhance(
         raise HTTPException(status_code=500, detail=f"增强处理失败: {str(e)}")
 
 
+# ========== ROI 增强并回拼路由 (第一阶段最小链路) ==========
+
+import json
+
+@app.post("/model/enhance-roi")
+async def predict_enhance_roi(
+    request: Request,
+    file: UploadFile = File(...),
+    bbox: str = Form(...),  # JSON string: "[x1, y1, x2, y2]"
+    source: str = Form("image"),
+    scale: int = Form(4),
+    denoise: float = Form(0),
+):
+    """
+    ROI 增强并回拼原图接口（第一阶段最小链路）
+    
+    参数:
+        bbox: JSON 字符串格式的坐标数组 [x1, y1, x2, y2]（绝对像素坐标）
+        scale: 增强倍数（默认 4）
+        denoise: 降噪强度 0-1（默认 0）
+    
+    处理流程:
+        1. 读取原图
+        2. 解析 bbox 并边界检查
+        3. 裁剪 ROI
+        4. Real-ESRGAN 增强（4x）
+        5. resize ROI 回原 bbox 尺寸
+        6. 回拼到原图
+        7. 返回 stitched image
+    """
+    print(f"\n{'='*60}")
+    print(f"[ROI-Enhance] === 收到 ROI 增强请求: {datetime.now()} ===")
+    print(f"[ROI-Enhance] 文件: {file.filename if file else 'None'}")
+    print(f"[ROI-Enhance] bbox 参数: {bbox}")
+    print(f"{'='*60}\n")
+    
+    start_time = time.time()
+    
+    if source != "image":
+        return JSONResponse(
+            {"error": "当前版本只支持 image"},
+            status_code=400
+        )
+    
+    # 1. 读取原图
+    print("[ROI-Enhance] 步骤 1/7: 读取原图...")
+    data = await file.read()
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(status_code=400, detail="无法解析上传图片")
+    
+    img_h, img_w = img.shape[:2]
+    print(f"[ROI-Enhance] 步骤 1/7 完成: 原图尺寸 {img_w}x{img_h}")
+    
+    # 2. 解析 bbox
+    print("[ROI-Enhance] 步骤 2/7: 解析 bbox...")
+    try:
+        bbox_coords = json.loads(bbox)
+        if not isinstance(bbox_coords, list) or len(bbox_coords) != 4:
+            raise ValueError("bbox 必须是包含 4 个元素的数组")
+        x1, y1, x2, y2 = map(int, bbox_coords)
+        print(f"[ROI-Enhance] 原始 bbox: ({x1}, {y1}, {x2}, {y2})")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"bbox 格式错误: {str(e)}")
+    
+    # 3. 边界检查和处理
+    print("[ROI-Enhance] 步骤 3/7: 边界检查...")
+    # 确保 x1 < x2, y1 < y2
+    x1, x2 = min(x1, x2), max(x1, x2)
+    y1, y2 = min(y1, y2), max(y1, y2)
+    
+    # 裁剪到图像边界
+    x1 = max(0, min(x1, img_w))
+    y1 = max(0, min(y1, img_h))
+    x2 = max(0, min(x2, img_w))
+    y2 = max(0, min(y2, img_h))
+    
+    roi_w = x2 - x1
+    roi_h = y2 - y1
+    
+    print(f"[ROI-Enhance] 裁剪后 bbox: ({x1}, {y1}, {x2}, {y2}), 尺寸: {roi_w}x{roi_h}")
+    
+    # ROI 尺寸检查
+    MIN_ROI_SIZE = 32
+    if roi_w < MIN_ROI_SIZE or roi_h < MIN_ROI_SIZE:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"ROI 尺寸过小: {roi_w}x{roi_h}, 最小要求: {MIN_ROI_SIZE}x{MIN_ROI_SIZE}"
+        )
+    
+    print(f"[ROI-Enhance] 步骤 3/7 完成: ROI 尺寸 {roi_w}x{roi_h}")
+    
+    # 4. 裁剪 ROI
+    print("[ROI-Enhance] 步骤 4/7: 裁剪 ROI...")
+    roi = img[y1:y2, x1:x2].copy()
+    print(f"[ROI-Enhance] 步骤 4/7 完成: ROI 裁剪成功")
+    
+    # 5. Real-ESRGAN 增强
+    print("[ROI-Enhance] 步骤 5/7: Real-ESRGAN 增强...")
+    model = get_model()
+    inference_start = time.time()
+    enhanced_roi = model.enhance(roi, outscale=REALESRGAN_SCALE)
+    inference_time = time.time() - inference_start
+    enhanced_h, enhanced_w = enhanced_roi.shape[:2]
+    print(f"[ROI-Enhance] 步骤 5/7 完成: 增强后尺寸 {enhanced_w}x{enhanced_h}, 耗时 {inference_time:.2f}s")
+    
+    # 6. resize 回原 ROI 尺寸
+    print("[ROI-Enhance] 步骤 6/7: resize 回原尺寸...")
+    if enhanced_w != roi_w or enhanced_h != roi_h:
+        resized_roi = cv2.resize(enhanced_roi, (roi_w, roi_h), interpolation=cv2.INTER_LANCZOS4)
+        print(f"[ROI-Enhance] resize: {enhanced_w}x{enhanced_h} -> {roi_w}x{roi_h}")
+    else:
+        resized_roi = enhanced_roi
+        print(f"[ROI-Enhance] 无需 resize")
+    
+    # 可选：后处理降噪
+    if denoise > 0:
+        print(f"[ROI-Enhance] 应用降噪 (强度: {denoise:.2f})...")
+        img_rgb = cv2.cvtColor(resized_roi, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(img_rgb)
+        filter_size = int(3 + denoise * 4)
+        if filter_size % 2 == 0:
+            filter_size += 1
+        pil_img = pil_img.filter(ImageFilter.MedianFilter(size=filter_size))
+        if denoise < 0.5:
+            enhancer = ImageFilter.UnsharpMask(radius=2, percent=100, threshold=3)
+            pil_img = pil_img.filter(enhancer)
+        resized_roi = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    
+    print(f"[ROI-Enhance] 步骤 6/7 完成")
+    
+    # 7. 回拼到原图
+    print("[ROI-Enhance] 步骤 7/7: 回拼到原图...")
+    img[y1:y2, x1:x2] = resized_roi
+    process_time = time.time() - start_time
+    print(f"[ROI-Enhance] 步骤 7/7 完成: 总耗时 {process_time:.2f}s")
+    
+    # 编码返回
+    quality = 95 if max(img_w, img_h) < 2000 else 90
+    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    ok, encoded = cv2.imencode(".jpg", img, encode_params)
+    
+    if not ok:
+        raise HTTPException(status_code=500, detail="结果图编码失败")
+    
+    print(f"[ROI-Enhance] 输出图片: {len(encoded.tobytes()) / 1024:.1f} KB")
+    print(f"[ROI-Enhance] === 处理完成 ===\n")
+    
+    return Response(
+        content=encoded.tobytes(),
+        media_type="image/jpeg",
+        headers={
+            "X-Process-Time": str(process_time),
+            "X-Inference-Time": str(inference_time),
+            "X-Original-Size": f"{img_w}x{img_h}",
+            "X-Roi-Size": f"{roi_w}x{roi_h}",
+            "X-Roi-Count": "1"
+        }
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=5000)

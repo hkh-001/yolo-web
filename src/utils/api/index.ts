@@ -44,9 +44,13 @@ export function callModels<T extends PredictData["source"]>(modelId: string, dat
     });
     const headers = accept ? { Accept: accept } : undefined;
     
+    // 根据模型类型调整超时：enhance 系列需要 120s，其他 60s
+    const timeout = modelId.startsWith('enhance') ? 120000 : 60000;
+    
     return _api.post<ImageResponse | VideoResponse | Blob>(`model/${modelId}`, { 
         body: formdata, 
-        headers 
+        headers,
+        timeout
     }).then(response => {
         const duration = Date.now() - startTime;
         if (DEBUG) {

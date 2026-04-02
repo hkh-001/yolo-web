@@ -23,3 +23,9 @@ id = "enhance"
 name = "图像增强 (Real-ESRGAN)"
 api_url = "http://127.0.0.1:5000/model/enhance"
 api_key = ""
+
+[[models]]
+id = "enhance-roi"
+name = "ROI 增强 (Real-ESRGAN)"
+api_url = "http://127.0.0.1:5000/model/enhance-roi"
+api_key = ""

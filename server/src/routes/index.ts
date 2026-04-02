@@ -72,7 +72,7 @@ router.post('/model/:id', async (c) => {
         
         // 使用 AbortController 实现超时（Real-ESRGAN 可能需要更长时间）
         const controller = new AbortController();
-        const timeoutMs = modelId === 'enhance' ? 120000 : 30000; // enhance 模型 120 秒超时，其他 30 秒
+        const timeoutMs = modelId.startsWith('enhance') ? 120000 : 30000; // enhance 系列模型 120 秒超时，其他 30 秒
         const timeoutId = setTimeout(() => {
             console.error(`[Backend] ⏱️ fetch 超时 (${timeoutMs/1000}s)，主动取消`);
             controller.abort();
@@ -117,7 +117,7 @@ router.post('/model/:id', async (c) => {
         console.error(`[Backend]    错误消息: ${error.message}`);
         
         if (error.name === 'AbortError') {
-            const timeoutSec = modelId === 'enhance' ? 120 : 30;
+            const timeoutSec = modelId.startsWith('enhance') ? 120 : 30;
             return Response.json({
                 success: false,
                 message: `模型服务响应超时 (${timeoutSec}s)`,

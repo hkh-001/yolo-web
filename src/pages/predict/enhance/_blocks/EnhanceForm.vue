@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import {
-    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElButton, ElInputNumber, ElInput, ElPopconfirm,
+    ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElButton, ElInputNumber, ElInput, ElPopconfirm, ElRadioGroup, ElRadio,
     type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
 } from 'element-plus';
 import { Delete, Refresh, UploadFilled, FolderAdd } from '@element-plus/icons-vue';
@@ -22,15 +22,27 @@ const props = defineProps<{
 const uploadEl = ref<UploadInstance | null>(null);
 const uploadedFileList = ref<UploadUserFile[]>([]);
 
+// 增强模式：full=整图, auto=自动检测, manual=手动ROI
+const enhanceMode = ref<'full' | 'auto' | 'manual'>('full');
+
 // 表单参数
-const modelId = ref<string>("");
 const submitLoading = ref(false);
+const stage = ref<'idle' | 'detecting' | 'enhancing' | 'done'>('idle');
+const stageMessage = ref<string>('');
 
 // 增强参数
 const form = reactive({
     scale: 2,           // 放大倍数
     denoise: 0,         // 降噪强度 0-1
 });
+
+// ROI 参数（手动模式）
+const roiBbox = ref<string>("[100, 100, 300, 300]");
+const bboxError = ref<string>("");
+
+// 检测结果（自动模式）
+const detectedBoxes = ref<any[]>([]);
+const selectedBox = ref<any>(null);
 
 // 结果状态
 const originalUrl = ref<string>("");
@@ -47,21 +59,14 @@ const saveLoading = ref(false);
 
 const models = ref<ModelInfo[]>([]);
 
-// 获取模型列表（筛选增强模型）
+// 获取模型列表
 function updateModels() {
     api.getModels().then((m) => {
-        // 筛选增强模型（id 包含 enhance 或特定模型）
+        // 筛选增强模型
         const enhanceModels = m.filter(model => 
             model.id.includes('enhance') || model.id.includes('esrgan') || model.id.includes('super')
         );
-        if (enhanceModels.length > 0) {
-            modelId.value = enhanceModels[0].id;
-            models.value = enhanceModels;
-        } else if (m.length > 0) {
-            // 如果没有专门的增强模型，显示所有模型
-            modelId.value = m[0].id;
-            models.value = m;
-        }
+        models.value = enhanceModels;
     }).catch((e: Error) => {
         Message.error(`获取模型列表失败：${e.name}`)
         console.error(e)
@@ -85,6 +90,53 @@ function clearResults() {
     originalUrl.value = "";
     processingTime.value = 0;
     showOriginal.value = false;
+    stage.value = 'idle';
+    stageMessage.value = '';
+    detectedBoxes.value = [];
+    selectedBox.value = null;
+}
+
+// 校验 bbox 格式
+function validateBbox(bboxStr: string): { valid: boolean; error?: string; value?: number[] } {
+    const trimmed = bboxStr.trim();
+    
+    if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) {
+        return { valid: false, error: "格式错误：必须以 [ 开头，] 结尾" };
+    }
+    
+    const content = trimmed.slice(1, -1).trim();
+    if (!content) {
+        return { valid: false, error: "格式错误：内容不能为空" };
+    }
+    
+    const parts = content.split(',').map(p => p.trim());
+    if (parts.length !== 4) {
+        return { valid: false, error: `格式错误：需要 4 个数值，实际 ${parts.length} 个` };
+    }
+    
+    const nums: number[] = [];
+    for (let i = 0; i < 4; i++) {
+        const num = parseInt(parts[i], 10);
+        if (isNaN(num)) {
+            return { valid: false, error: `格式错误：第 ${i + 1} 个值 "${parts[i]}" 不是有效数字` };
+        }
+        nums.push(num);
+    }
+    
+    const [x1, y1, x2, y2] = nums;
+    if (x2 <= x1) {
+        return { valid: false, error: `数值错误：x2 (${x2}) 必须大于 x1 (${x1})` };
+    }
+    if (y2 <= y1) {
+        return { valid: false, error: `数值错误：y2 (${y2}) 必须大于 y1 (${y1})` };
+    }
+    
+    const MIN_SIZE = 32;
+    if (x2 - x1 < MIN_SIZE || y2 - y1 < MIN_SIZE) {
+        return { valid: false, error: `尺寸错误：ROI 宽高必须至少 ${MIN_SIZE} 像素` };
+    }
+    
+    return { valid: true, value: nums };
 }
 
 // 防止重复提交锁
@@ -96,46 +148,56 @@ async function onSubmit() {
         return;
     }
     
-    if (!modelId.value) {
-        Message.warning("请选择一个模型")
-        return;
-    }
     if (uploadedFileList.value.length === 0) {
         Message.warning("请上传一张图片")
         return;
     }
 
+    // 手动模式校验
+    if (enhanceMode.value === 'manual') {
+        bboxError.value = "";
+        const validation = validateBbox(roiBbox.value);
+        if (!validation.valid) {
+            bboxError.value = validation.error || "bbox 格式错误";
+            Message.warning(bboxError.value);
+            return;
+        }
+    }
+
     isSubmitting = true;
     submitLoading.value = true;
+    clearResults();
     
     const uploadedFile: File = uploadedFileList.value[0].raw!;
-    
-    // 保存原图 URL
     originalUrl.value = URL.createObjectURL(uploadedFile);
     
     const startTime = Date.now();
     
     try {
-        // 调用增强模型，期望返回图片 Blob
-        const res = await api.callModels<"image">(
-            modelId.value, 
-            {
-                file: uploadedFile,
-                source: "image",
-                scale: form.scale,
-                denoise: form.denoise,
-            }, 
-            "image/jpeg"  // 直接请求图片输出
-        );
+        let res: Blob;
         
-        if (res instanceof Blob) {
-            enhancedBlob.value = res;
-            enhancedUrl.value = URL.createObjectURL(res);
-            processingTime.value = Date.now() - startTime;
-            Message.success(`增强完成，耗时 ${(processingTime.value / 1000).toFixed(2)}s`);
-        } else {
-            Message.error("返回格式异常");
+        switch (enhanceMode.value) {
+            case 'full':
+                // 整图增强
+                res = await runFullEnhance(uploadedFile);
+                break;
+            case 'auto':
+                // 自动检测增强
+                res = await runAutoEnhance(uploadedFile);
+                break;
+            case 'manual':
+                // 手动 ROI 增强
+                res = await runManualEnhance(uploadedFile);
+                break;
+            default:
+                throw new Error("未知的增强模式");
         }
+        
+        enhancedBlob.value = res;
+        enhancedUrl.value = URL.createObjectURL(res);
+        processingTime.value = Date.now() - startTime;
+        stage.value = 'done';
+        Message.success(`增强完成，耗时 ${(processingTime.value / 1000).toFixed(2)}s`);
         
     } catch (e: any) {
         console.error('[Enhance] 提交失败:', e);
@@ -158,7 +220,136 @@ async function onSubmit() {
     } finally {
         submitLoading.value = false;
         isSubmitting = false;
+        stage.value = 'idle';
+        stageMessage.value = '';
     }
+}
+
+// 整图增强
+async function runFullEnhance(file: File): Promise<Blob> {
+    stage.value = 'enhancing';
+    stageMessage.value = '整图增强中...';
+    
+    const res = await api.callModels<"image">(
+        'enhance',
+        {
+            file: file,
+            source: "image",
+            scale: form.scale,
+            denoise: form.denoise,
+        },
+        "image/jpeg"
+    );
+    
+    if (!(res instanceof Blob)) {
+        throw new Error("返回格式异常");
+    }
+    
+    return res;
+}
+
+// 自动检测增强
+async function runAutoEnhance(file: File): Promise<Blob> {
+    // 阶段1：检测
+    stage.value = 'detecting';
+    stageMessage.value = '目标检测中...';
+    
+    const detectRes = await api.callModels<"image">(
+        'yolo26n',
+        {
+            file: file,
+            source: "image",
+            conf: 0.25,
+            iou: 0.7,
+            imgsz: 640,
+        },
+        "application/json"
+    );
+    
+    if (detectRes instanceof Blob) {
+        throw new Error("检测返回格式异常，期望 JSON");
+    }
+    
+    const detectData = detectRes as any;
+    const boxes = detectData.boxes || detectData.predictions || [];
+    
+    // 过滤低置信度
+    const validBoxes = boxes.filter((box: any) => {
+        const conf = box.conf !== undefined ? box.conf : box.confidence;
+        return conf >= 0.25;
+    });
+    
+    if (validBoxes.length === 0) {
+        throw new Error("未检测到目标（置信度>=0.25），请改用手动 ROI 模式");
+    }
+    
+    // 取最高置信度
+    validBoxes.sort((a: any, b: any) => {
+        const confA = a.conf !== undefined ? a.conf : a.confidence;
+        const confB = b.conf !== undefined ? b.conf : b.confidence;
+        return confB - confA;
+    });
+    
+    const bestBox = validBoxes[0];
+    const boxCoords = bestBox.box || { x1: bestBox.xmin, y1: bestBox.ymin, x2: bestBox.xmax, y2: bestBox.ymax };
+    const bbox = [boxCoords.x1, boxCoords.y1, boxCoords.x2, boxCoords.y2];
+    
+    console.log('[AutoEnhance] 检测到目标:', bestBox.name, 'conf:', bestBox.conf || bestBox.confidence);
+    console.log('[AutoEnhance] 使用 bbox:', bbox);
+    
+    detectedBoxes.value = validBoxes;
+    selectedBox.value = bestBox;
+    
+    // 阶段2：增强
+    stage.value = 'enhancing';
+    stageMessage.value = `增强目标: ${bestBox.name}...`;
+    
+    const enhanceRes = await api.callModels<"image">(
+        'enhance-roi',
+        {
+            file: file,
+            bbox: JSON.stringify(bbox),
+            source: "image",
+            scale: form.scale,
+            denoise: form.denoise,
+        },
+        "image/jpeg"
+    );
+    
+    if (!(enhanceRes instanceof Blob)) {
+        throw new Error("增强返回格式异常");
+    }
+    
+    return enhanceRes;
+}
+
+// 手动 ROI 增强
+async function runManualEnhance(file: File): Promise<Blob> {
+    stage.value = 'enhancing';
+    stageMessage.value = 'ROI 增强中...';
+    
+    const validation = validateBbox(roiBbox.value);
+    if (!validation.valid || !validation.value) {
+        throw new Error(validation.error || "bbox 校验失败");
+    }
+    
+    const res = await api.callModels<"image">(
+        'enhance-roi',
+        {
+            file: file,
+            bbox: roiBbox.value.trim(),
+            source: "image",
+            scale: form.scale,
+            denoise: form.denoise,
+        },
+        "image/jpeg"
+    );
+    
+    if (!(res instanceof Blob)) {
+        throw new Error("返回格式异常");
+    }
+    
+    return res;
 }
 
 function toggleView() {
@@ -191,28 +382,32 @@ async function saveResults() {
     saveLoading.value = true;
     
     try {
-        // 上传原图
         const uploadedFile: File = uploadedFileList.value[0].raw!;
         const originalBlob = new Blob([uploadedFile], { type: uploadedFile.type });
         const originalId = await api.uploadFile(originalBlob).then(r => r.id);
-        
-        // 上传增强结果图
         const resultId = await api.uploadFile(enhancedBlob.value).then(r => r.id);
         
-        // 保存任务
+        const inputArgs: any = {
+            mode: enhanceMode.value,
+            scale: form.scale,
+            denoise: form.denoise
+        };
+        
+        if (enhanceMode.value === 'manual') {
+            inputArgs.bbox = roiBbox.value.trim();
+        } else if (enhanceMode.value === 'auto' && selectedBox.value) {
+            inputArgs.detected_box = selectedBox.value;
+        }
+        
         const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
-            source: "enhance",
+            source: enhanceMode.value === 'full' ? 'enhance' : `enhance-${enhanceMode.value}`,
             task_name: submitTaskName.value,
             input_blob: originalId,
-            input_args: JSON.stringify({
-                model_id: modelId.value,
-                scale: form.scale,
-                denoise: form.denoise
-            }),
+            input_args: JSON.stringify(inputArgs),
             results: JSON.stringify({
                 processing_time: processingTime.value,
-                original_size: { width: 0, height: 0 },  // Will be filled if available
-                enhanced_size: { width: 0, height: 0 }
+                detected_boxes: detectedBoxes.value.length,
+                selected_box: selectedBox.value
             }),
             results_blob: resultId,
         };
@@ -244,14 +439,30 @@ async function saveResults() {
         </div>
         <div class="mt-4">
             <ElForm class="*:my-2">
-                <!-- 模型选择 -->
+                <!-- 增强模式选择 -->
                 <div class="*:my-2">
-                    <span class="text-sm">选择增强模型</span>
-                    <ElButton link :icon="Refresh" class="!m-0 !ml-2" @click="updateModels" />
-                    <ElSelect v-model="modelId">
-                        <ElSelect.Option v-for="model in models" :key="model.id" :label="model.name"
-                            :value="model.id" />
-                    </ElSelect>
+                    <span class="text-sm">增强模式</span>
+                    <ElRadioGroup v-model="enhanceMode" class="mt-2">
+                        <ElRadio label="full">整图增强</ElRadio>
+                        <ElRadio label="auto">自动检测增强</ElRadio>
+                        <ElRadio label="manual">手动 ROI 增强</ElRadio>
+                    </ElRadioGroup>
+                    <div class="text-xs text-gray-400 mt-1">
+                        整图=全图超分 | 自动=检测后增强最高置信度目标 | 手动=指定区域增强
+                    </div>
+                </div>
+                
+                <!-- 手动模式：ROI 坐标输入 -->
+                <div class="*:my-2" v-if="enhanceMode === 'manual'">
+                    <span class="text-sm">ROI 坐标 (x1, y1, x2, y2)</span>
+                    <ElInput 
+                        v-model="roiBbox" 
+                        placeholder="[100, 100, 300, 300]"
+                        :class="bboxError ? 'border-red-500' : ''"
+                    />
+                    <div class="text-xs" :class="bboxError ? 'text-red-500' : 'text-gray-400'">
+                        {{ bboxError || "格式: [x1, y1, x2, y2]，例如：[100, 100, 300, 300]" }}
+                    </div>
                 </div>
                 
                 <!-- 图片上传 -->
@@ -283,6 +494,14 @@ async function saveResults() {
                     <span class="text-sm">降噪强度</span>
                     <ElSlider v-model="form.denoise" show-input class="pl-2" :step="0.1" :min="0" :max="1" />
                     <div class="text-xs text-gray-400">0=不降噪, 1=强力降噪</div>
+                </div>
+                
+                <!-- 阶段提示 -->
+                <div v-if="stage !== 'idle'" class="p-3 bg-blue-50 rounded-lg">
+                    <div class="flex items-center gap-2">
+                        <div class="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        <span class="text-sm text-blue-600">{{ stageMessage }}</span>
+                    </div>
                 </div>
                 
                 <!-- 提交按钮 -->
@@ -346,14 +565,22 @@ async function saveResults() {
         <div class="mt-4 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
             <div class="grid grid-cols-3 gap-4">
                 <div>
-                    <span class="text-gray-400">放大倍数:</span> {{ form.scale }}x
+                    <span class="text-gray-400">增强模式:</span> 
+                    {{ enhanceMode === 'full' ? '整图' : enhanceMode === 'auto' ? '自动检测' : '手动 ROI' }}
                 </div>
                 <div>
-                    <span class="text-gray-400">降噪强度:</span> {{ form.denoise }}
+                    <span class="text-gray-400">放大倍数:</span> {{ form.scale }}x
                 </div>
                 <div>
                     <span class="text-gray-400">处理耗时:</span> {{ (processingTime / 1000).toFixed(2) }}s
                 </div>
+            </div>
+            <div v-if="enhanceMode === 'auto' && selectedBox" class="mt-2 pt-2 border-t border-gray-200">
+                <span class="text-gray-400">检测目标:</span> 
+                {{ selectedBox.name }} (置信度: {{ (selectedBox.conf || selectedBox.confidence || 0).toFixed(2) }})
+            </div>
+            <div v-if="enhanceMode === 'manual'" class="mt-2 pt-2 border-t border-gray-200">
+                <span class="text-gray-400">ROI 坐标:</span> {{ roiBbox }}
             </div>
         </div>
     </div>
@@ -362,5 +589,15 @@ async function saveResults() {
 <style scoped>
 .upload-demo {
     width: 100%;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.animate-spin {
+    animation: spin 1s linear infinite;
 }
 </style>
