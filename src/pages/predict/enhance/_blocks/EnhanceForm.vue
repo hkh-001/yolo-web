@@ -442,7 +442,7 @@ async function saveResults() {
                 <!-- 增强模式选择 -->
                 <div class="*:my-2">
                     <span class="text-sm">增强模式</span>
-                    <ElRadioGroup v-model="enhanceMode" class="mt-2">
+                    <ElRadioGroup v-model="enhanceMode" class="mt-2 ml-6">
                         <ElRadio label="full">整图增强</ElRadio>
                         <ElRadio label="auto">自动检测增强</ElRadio>
                         <ElRadio label="manual">手动 ROI 增强</ElRadio>

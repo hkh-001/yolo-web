@@ -65,16 +65,16 @@ onMounted(() => {
 
 function updateModels() {
     api.getModels().then((m) => {
-        // Filter only segmentation models
-        const segModels = m.filter(model => 
-            model.id.includes('seg') || model.name.toLowerCase().includes('seg')
-        );
+        // 只显示分割模型 yolo26-seg
+        const segModels = m.filter(model => model.id === 'yolo26-seg');
         if (segModels.length > 0) {
             modelId.value = segModels[0].id;
+            models.value = segModels;
         } else if (m.length > 0) {
+            // 如果没有找到指定模型，fallback 到第一个
             modelId.value = m[0].id;
+            models.value = m;
         }
-        models.value = m;
     }).catch((e: Error) => {
         Message.error(`获取模型列表失败：${e.name}`)
         console.error(e)

@@ -69,8 +69,16 @@ const accept = ref<string>(props.source === "image" ? "application/json" : "vide
 
 function updateModels() {
     api.getModels().then((m) => {
-        if (m.length > 0) modelId.value = m[0].id
-        models.value = m
+        // 只显示检测模型 yolo26n
+        const detectModels = m.filter(model => model.id === 'yolo26n')
+        if (detectModels.length > 0) {
+            modelId.value = detectModels[0].id
+            models.value = detectModels
+        } else if (m.length > 0) {
+            // 如果没有找到指定模型，fallback 到第一个
+            modelId.value = m[0].id
+            models.value = m
+        }
     }).catch((e: Error) => {
         Message.error(`获取模型列表失败：${e.name}`)
         console.error(e)
