@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 from PIL import Image, ImageFilter
 import io
+import base64
 
 app = FastAPI()
 
@@ -220,8 +221,17 @@ async def predict_seg(
     
     # 根据 Accept 返回不同格式
     if "application/json" in accept:
-        # JSON 格式：返回详细检测数据
+        # JSON 格式：返回详细检测数据 + mask 数据
         detections = []
+        mask_list = []  # 新增：mask 数据列表
+        
+        # 调试：打印 masks 信息
+        print(f"[SegModel] r.masks type: {type(r.masks)}")
+        print(f"[SegModel] r.masks is None: {r.masks is None}")
+        if r.masks is not None:
+            print(f"[SegModel] r.masks.data shape: {r.masks.data.shape if hasattr(r.masks.data, 'shape') else 'N/A'}")
+            print(f"[SegModel] len(r.masks): {len(r.masks)}")
+        
         if r.boxes is not None:
             names = r.names
             for i, box in enumerate(r.boxes):
@@ -236,15 +246,65 @@ async def predict_seg(
                     "box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
                 }
                 
-                # 添加掩码信息
-                if r.masks is not None and i < len(r.masks):
-                    detection["has_mask"] = True
-                else:
-                    detection["has_mask"] = False
+                # 添加掩码信息标记
+                has_mask = r.masks is not None and i < len(r.masks)
+                detection["has_mask"] = has_mask
                 
                 detections.append(detection)
+                
+                # 新增：提取并编码 mask 数据
+                if has_mask:
+                    try:
+                        print(f"[SegModel] 开始提取 mask {i}...")
+                        
+                        # 获取 mask 数据 - 修正：使用 r.masks.data[i] 而不是 r.masks[i].data[0]
+                        # r.masks.data shape: (N, H, W)，N 是 mask 数量
+                        mask_tensor = r.masks.data[i]  # shape: (H, W)
+                        mask_data = mask_tensor.cpu().numpy()
+                        
+                        print(f"[SegModel] mask {i} 原始尺寸: {mask_data.shape}")
+                        
+                        # 二值化 (0-1 浮点 -> 0/255 整数)
+                        mask_binary = (mask_data > 0.5).astype(np.uint8) * 255
+                        
+                        # 获取 bbox 区域（局部 mask）
+                        x1_int, y1_int, x2_int, y2_int = int(x1), int(y1), int(x2), int(y2)
+                        x1_int = max(0, x1_int)
+                        y1_int = max(0, y1_int)
+                        x2_int = min(mask_binary.shape[1], x2_int)
+                        y2_int = min(mask_binary.shape[0], y2_int)
+                        
+                        print(f"[SegModel] mask {i} bbox 裁剪: ({x1_int}, {y1_int}, {x2_int}, {y2_int})")
+                        
+                        if x2_int > x1_int and y2_int > y1_int:
+                            mask_roi = mask_binary[y1_int:y2_int, x1_int:x2_int]
+                            
+                            # 编码为 PNG（比 JPG 更适合二值图）
+                            ok, encoded = cv2.imencode(".png", mask_roi)
+                            if ok:
+                                mask_base64 = base64.b64encode(encoded.tobytes()).decode('utf-8')
+                                
+                                mask_list.append({
+                                    "bbox": [x1, y1, x2, y2],
+                                    "width": mask_roi.shape[1],
+                                    "height": mask_roi.shape[0],
+                                    "mask": mask_base64,
+                                    "name": names.get(cls_id, str(cls_id)),
+                                    "conf": conf_val,
+                                    "index": i
+                                })
+                                print(f"[SegModel] mask {i} 提取成功，base64 长度: {len(mask_base64)}")
+                            else:
+                                print(f"[SegModel] mask {i} PNG 编码失败")
+                        else:
+                            print(f"[SegModel] mask {i} bbox 区域无效，跳过")
+                    except Exception as e:
+                        print(f"[SegModel] 提取 mask {i} 失败: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        # mask 提取失败不影响整体返回
         
-        print(f"[SegModel] 返回 JSON 格式，{len(detections)} 个目标")
+        print(f"[SegModel] 返回 JSON 格式，{len(detections)} 个目标，{len(mask_list)} 个 mask")
         return {
             "source": "image",
             "width": int(r.orig_shape[1]),
@@ -252,6 +312,7 @@ async def predict_seg(
             "count": len(detections),
             "boxes": detections,
             "predictions": detections,
+            "masks": mask_list,  # 新增
             "task": "segmentation"
         }
     
@@ -589,6 +650,168 @@ async def predict_enhance_roi(
             "X-Original-Size": f"{img_w}x{img_h}",
             "X-Roi-Size": f"{roi_w}x{roi_h}",
             "X-Roi-Count": "1"
+        }
+    )
+
+
+@app.post("/model/enhance-mask")
+async def predict_enhance_mask(
+    request: Request,
+    file: UploadFile = File(...),
+    bbox: str = Form(...),      # JSON: [x1, y1, x2, y2]
+    mask: str = Form(...),      # base64 编码的 PNG mask
+    scale: int = Form(4),
+    denoise: float = Form(0),
+):
+    """
+    Mask 级精确增强接口（阶段 2B）
+    
+    参数:
+        bbox: 目标区域 [x1, y1, x2, y2]
+        mask: base64 编码的局部二值 mask (PNG 格式)
+        scale: 增强倍数
+        denoise: 降噪强度
+    
+    处理流程:
+        1. 读取原图
+        2. 解析 bbox
+        3. 解码 mask base64
+        4. 校验 mask 尺寸与 bbox 匹配
+        5. 按 bbox 裁剪 ROI
+        6. Real-ESRGAN 增强 ROI
+        7. mask 引导融合（mask 内 enhanced，mask 外原图）
+        8. 贴回原图
+        9. 返回结果
+    """
+    print(f"\n{'='*60}")
+    print(f"[Mask-Enhance] === 收到 Mask 精确增强请求: {datetime.now()} ===")
+    print(f"[Mask-Enhance] bbox: {bbox}")
+    print(f"{'='*60}\n")
+    
+    start_time = time.time()
+    
+    # 1. 读取原图
+    print("[Mask-Enhance] 步骤 1/8: 读取原图...")
+    data = await file.read()
+    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(status_code=400, detail="无法解析上传图片")
+    
+    img_h, img_w = img.shape[:2]
+    print(f"[Mask-Enhance] 步骤 1/8 完成: 原图尺寸 {img_w}x{img_h}")
+    
+    # 2. 解析 bbox
+    print("[Mask-Enhance] 步骤 2/8: 解析 bbox...")
+    try:
+        bbox_coords = json.loads(bbox)
+        if not isinstance(bbox_coords, list) or len(bbox_coords) != 4:
+            raise ValueError("bbox 必须是包含 4 个元素的数组")
+        x1, y1, x2, y2 = map(int, bbox_coords)
+        x1, x2 = max(0, min(x1, img_w)), max(0, min(x2, img_w))
+        y1, y2 = max(0, min(y1, img_h)), max(0, min(y2, img_h))
+        roi_w, roi_h = x2 - x1, y2 - y1
+        print(f"[Mask-Enhance] bbox: ({x1}, {y1}, {x2}, {y2}), ROI: {roi_w}x{roi_h}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"bbox 格式错误: {str(e)}")
+    
+    # ROI 尺寸检查
+    MIN_ROI_SIZE = 32
+    if roi_w < MIN_ROI_SIZE or roi_h < MIN_ROI_SIZE:
+        raise HTTPException(status_code=400, detail=f"ROI 尺寸过小: {roi_w}x{roi_h}")
+    
+    # 3. 解码 mask
+    print("[Mask-Enhance] 步骤 3/8: 解码 mask...")
+    try:
+        mask_bytes = base64.b64decode(mask)
+        mask_arr = np.frombuffer(mask_bytes, np.uint8)
+        mask_img = cv2.imdecode(mask_arr, cv2.IMREAD_GRAYSCALE)
+        
+        if mask_img is None:
+            raise ValueError("无法解码 mask 图像")
+        
+        print(f"[Mask-Enhance] mask 尺寸: {mask_img.shape[1]}x{mask_img.shape[0]}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"mask 解码失败: {str(e)}")
+    
+    # 4. 校验 mask 尺寸与 bbox 匹配
+    print("[Mask-Enhance] 步骤 4/8: 校验 mask 尺寸...")
+    if mask_img.shape[1] != roi_w or mask_img.shape[0] != roi_h:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"mask 尺寸 ({mask_img.shape[1]}x{mask_img.shape[0]}) 与 bbox ({roi_w}x{roi_h}) 不匹配"
+        )
+    
+    # 二值化 mask（确保是 0/255）
+    mask_binary = (mask_img > 127).astype(np.uint8) * 255
+    print(f"[Mask-Enhance] mask 有效像素数: {np.sum(mask_binary > 0)}")
+    
+    # 5. 裁剪 ROI
+    print("[Mask-Enhance] 步骤 5/8: 裁剪 ROI...")
+    roi = img[y1:y2, x1:x2].copy()
+    
+    # 6. Real-ESRGAN 增强
+    print("[Mask-Enhance] 步骤 6/8: Real-ESRGAN 增强...")
+    model = get_model()
+    inference_start = time.time()
+    enhanced_roi = model.enhance(roi, outscale=REALESRGAN_SCALE)
+    inference_time = time.time() - inference_start
+    
+    # resize 回原 ROI 尺寸
+    if enhanced_roi.shape[1] != roi_w or enhanced_roi.shape[0] != roi_h:
+        enhanced_roi = cv2.resize(enhanced_roi, (roi_w, roi_h), interpolation=cv2.INTER_LANCZOS4)
+    
+    print(f"[Mask-Enhance] 增强完成，耗时 {inference_time:.2f}s")
+    
+    # 可选降噪
+    if denoise > 0:
+        img_rgb = cv2.cvtColor(enhanced_roi, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(img_rgb)
+        filter_size = int(3 + denoise * 4)
+        if filter_size % 2 == 0:
+            filter_size += 1
+        pil_img = pil_img.filter(ImageFilter.MedianFilter(size=filter_size))
+        if denoise < 0.5:
+            enhancer = ImageFilter.UnsharpMask(radius=2, percent=100, threshold=3)
+            pil_img = pil_img.filter(enhancer)
+        enhanced_roi = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    
+    # 7. mask 引导融合（hard paste，第一版无 feather）
+    print("[Mask-Enhance] 步骤 7/8: mask 引导融合...")
+    result_roi = roi.copy()
+    
+    # mask == 255 的区域使用 enhanced，mask == 0 的区域保留原图
+    mask_bool = mask_binary > 0
+    result_roi[mask_bool] = enhanced_roi[mask_bool]
+    
+    enhanced_pixels = np.sum(mask_bool)
+    total_pixels = mask_bool.size
+    print(f"[Mask-Enhance] 融合完成: {enhanced_pixels}/{total_pixels} 像素被增强 ({enhanced_pixels/total_pixels*100:.1f}%)")
+    
+    # 8. 贴回原图
+    print("[Mask-Enhance] 步骤 8/8: 贴回原图...")
+    img[y1:y2, x1:x2] = result_roi
+    process_time = time.time() - start_time
+    
+    # 编码返回
+    quality = 95 if max(img_w, img_h) < 2000 else 90
+    encode_params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    ok, encoded = cv2.imencode(".jpg", img, encode_params)
+    
+    if not ok:
+        raise HTTPException(status_code=500, detail="结果图编码失败")
+    
+    print(f"[Mask-Enhance] 输出图片: {len(encoded.tobytes()) / 1024:.1f} KB")
+    print(f"[Mask-Enhance] === 处理完成 ===\n")
+    
+    return Response(
+        content=encoded.tobytes(),
+        media_type="image/jpeg",
+        headers={
+            "X-Process-Time": str(process_time),
+            "X-Inference-Time": str(inference_time),
+            "X-Original-Size": f"{img_w}x{img_h}",
+            "X-Roi-Size": f"{roi_w}x{roi_h}",
+            "X-Enhanced-Pixels": str(enhanced_pixels)
         }
     )
 

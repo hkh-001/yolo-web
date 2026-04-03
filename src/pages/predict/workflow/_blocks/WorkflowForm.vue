@@ -186,16 +186,37 @@ currentFile: {{ currentFile?.name || 'null' }}</pre>
                         <div class="card-header">
                             <div class="card-title-group">
                                 <span class="step-badge">04</span>
-                                <span class="card-title">
-                                    <el-icon><magic-stick /></el-icon>
-                                    图像增强
-                                </span>
+                                <span class="card-title">图像增强</span>
                             </div>
                             <el-tag :type="getStatusType(enhanceStatus)" size="small" effect="light">
                                 {{ getStatusText(enhanceStatus) }}
                             </el-tag>
                         </div>
                     </template>
+                    <!-- 增强进度 -->
+                    <div v-if="enhanceStatus === 'running' && enhanceProgress.currentTargetName" class="target-info">
+                        <el-text type="info" size="small">
+                            正在增强: <strong>{{ enhanceProgress.currentTargetName }}</strong>
+                        </el-text>
+                    </div>
+                    <!-- 增强结果提示 -->
+                    <div v-if="enhanceStatus === 'success' && maskData.length > 0" class="target-info">
+                        <el-text type="success" size="small">
+                            mask 级精确增强完成
+                        </el-text>
+                    </div>
+                    <div v-if="enhanceStatus === 'success' && maskData.length === 0" class="target-info">
+                        <el-text type="success" size="small">
+                            mask 级精确增强完成
+                        </el-text>
+                    </div>
+                    <!-- 增强前提示 -->
+                    <div v-if="enhanceStatus === 'idle' && detectCount > 0" class="target-info">
+                        <el-text type="info" size="small">
+                            共检测到 {{ detectCount }} 个目标，将增强最高置信度目标
+                            <span v-if="maskData.length > 0">（优先使用 mask 精确增强）</span>
+                        </el-text>
+                    </div>
                     <div class="image-container">
                         <img
                             v-if="enhanceImage"
@@ -204,12 +225,11 @@ currentFile: {{ currentFile?.name || 'null' }}</pre>
                             class="result-image"
                         />
                         <div v-else class="placeholder">
-                            <el-icon><magic-stick /></el-icon>
                             <span>{{ enhanceStatus === 'running' ? '增强中...' : '等待执行' }}</span>
                         </div>
                     </div>
                     <div v-if="enhanceStatus === 'error' && maskStatus === 'success'" class="result-info">
-                        <el-text type="danger">图像增强失败</el-text>
+                        <el-text type="danger">{{ errorMessage || '图像增强失败' }}</el-text>
                     </div>
                 </el-card>
             </div>
@@ -249,6 +269,18 @@ const currentFile = ref<File | null>(null)
 const originalImage = ref<string>('')
 const maskImage = ref<string>('')
 const enhanceImage = ref<string>('')
+
+// mask 原始数据（阶段 2A：用于后续 mask 级精确增强）
+interface MaskData {
+    bbox: [number, number, number, number]
+    width: number
+    height: number
+    mask: string  // base64
+    name: string
+    conf: number
+    index: number
+}
+const maskData = ref<MaskData[]>([])
 
 // 步骤状态
 const detectStatus = ref<StepStatus>('idle')
@@ -409,6 +441,7 @@ function resetResults() {
     // 重置数据
     detectCount.value = 0
     detectBboxes.value = []
+    maskData.value = []  // 重置 mask 数据
     errorMessage.value = ''
 
     // 重置耗时
@@ -433,6 +466,7 @@ async function startWorkflow() {
     enhanceStatus.value = 'idle'
     detectCount.value = 0
     detectBboxes.value = []
+    maskData.value = []  // 重置 mask 数据
     
     // 清理之前的结果图片
     if (maskImage.value) {
@@ -518,10 +552,20 @@ async function runDetect(): Promise<boolean> {
         detectBboxes.value = boxes
         detectCount.value = boxes.length
 
+        console.log('[Workflow] ========== detect 完成 ==========')
+        console.log(`[Workflow] detectCount: ${detectCount.value}`)
+        console.log(`[Workflow] detectBboxes.length: ${detectBboxes.value.length}`)
+        if (detectBboxes.value.length > 0) {
+            const first = detectBboxes.value[0]
+            console.log('[Workflow] detectBboxes[0] 样本:', first)
+        }
+        console.log('[Workflow] =================================')
+
         await drawDetections()
 
         detectStatus.value = 'success'
         stepDurations.detect = Date.now() - startTime
+        console.log('[Workflow] detect 步骤成功完成')
         return true
 
     } catch (error) {
@@ -531,6 +575,31 @@ async function runDetect(): Promise<boolean> {
         ElMessage.error('图像识别失败: ' + errorMessage.value)
         return false
     }
+}
+
+// 获取被选中的目标索引（最高置信度）
+function getSelectedTargetIndex(): number {
+    if (!detectBboxes.value || detectBboxes.value.length === 0) return -1
+    
+    let bestIndex = 0
+    let bestConf = -1
+    
+    detectBboxes.value.forEach((box, index) => {
+        let conf
+        if (Array.isArray(box)) {
+            conf = box[4] || 0
+        } else if (box.box) {
+            conf = box.conf ?? box.confidence ?? 0
+        } else {
+            conf = box.confidence ?? box.conf ?? 0
+        }
+        if (conf > bestConf) {
+            bestConf = conf
+            bestIndex = index
+        }
+    })
+    
+    return bestIndex
 }
 
 async function drawDetections() {
@@ -552,9 +621,13 @@ async function drawDetections() {
     ctx.drawImage(img, 0, 0)
 
     const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD']
+    const selectedIndex = getSelectedTargetIndex()
     
     detectBboxes.value.forEach((box, index) => {
-        const color = colors[index % colors.length]
+        // 被选中的目标使用金色高亮
+        const isSelected = index === selectedIndex
+        const color = isSelected ? '#FFD700' : colors[index % colors.length]
+        const lineWidth = isSelected ? 5 : 3
         
         let x1, y1, x2, y2, conf, label
         
@@ -572,13 +645,13 @@ async function drawDetections() {
         }
         
         ctx.strokeStyle = color
-        ctx.lineWidth = 3
+        ctx.lineWidth = lineWidth
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1)
 
-        const displayLabel = `${label} ${(conf * 100).toFixed(1)}%`
-        ctx.font = 'bold 14px Arial'
+        const displayLabel = `${label} ${(conf * 100).toFixed(1)}%${isSelected ? ' ★' : ''}`
+        ctx.font = `bold ${isSelected ? 16 : 14}px Arial`
         const textMetrics = ctx.measureText(displayLabel)
-        const textHeight = 20
+        const textHeight = isSelected ? 24 : 20
         
         ctx.fillStyle = color
         ctx.fillRect(x1, y1 - textHeight, textMetrics.width + 10, textHeight)
@@ -595,18 +668,41 @@ async function runMask(): Promise<boolean> {
     const startTime = Date.now()
 
     try {
-        const result = await callModels('yolo26-seg', { file: currentFile.value }, 'image/jpeg')
+        // 步骤 1: 获取 JSON 数据（包含 mask 原始数据）
+        console.log('[Workflow] 步骤2: 开始掩码生成，获取 JSON 数据...')
+        const jsonResult = await callModels('yolo26-seg', { file: currentFile.value }, 'application/json') as any
+        
+        // 存储 mask 数据（阶段 2A：为后续 mask 级增强做准备）
+        console.log('[Workflow] ========== mask 完成 ==========')
+        if (jsonResult.masks && Array.isArray(jsonResult.masks)) {
+            maskData.value = jsonResult.masks
+            console.log(`[Workflow] maskData.length: ${maskData.value.length}`)
+            if (maskData.value.length > 0) {
+                maskData.value.forEach((m, i) => {
+                    console.log(`[Workflow] mask ${i}: ${m.name}, bbox: [${m.bbox.join(', ')}], size: ${m.width}x${m.height}`)
+                })
+            }
+        } else {
+            maskData.value = []
+            console.log('[Workflow] 未获取到 mask 数据 (jsonResult.masks 为空)')
+        }
+        console.log('[Workflow] =================================')
+        
+        // 步骤 2: 获取 overlay 图片（用于显示）
+        const imageResult = await callModels('yolo26-seg', { file: currentFile.value }, 'image/jpeg')
         
         if (maskImage.value) {
             URL.revokeObjectURL(maskImage.value)
         }
-        maskImage.value = URL.createObjectURL(result as Blob)
+        maskImage.value = URL.createObjectURL(imageResult as Blob)
 
         maskStatus.value = 'success'
         stepDurations.mask = Date.now() - startTime
+        console.log('[Workflow] 掩码生成完成')
         return true
 
     } catch (error) {
+        console.error('[Workflow] 掩码生成失败:', error)
         maskStatus.value = 'error'
         stepDurations.mask = Date.now() - startTime
         ElMessage.error('掩码生成失败')
@@ -614,33 +710,323 @@ async function runMask(): Promise<boolean> {
     }
 }
 
+// 从 detectBboxes 中提取最高置信度目标的完整信息
+function getBestBboxForEnhance(): { x1: number, y1: number, x2: number, y2: number, conf: number, name: string } | null {
+    if (!detectBboxes.value || detectBboxes.value.length === 0) {
+        return null
+    }
+
+    // 统一转换为标准格式并排序
+    const normalizedBoxes = detectBboxes.value.map((box: any) => {
+        let x1, y1, x2, y2, conf, name
+
+        if (Array.isArray(box)) {
+            // 数组格式: [x1, y1, x2, y2, conf, cls]
+            [x1, y1, x2, y2, conf] = box
+            name = `Class ${box[5] || 0}`
+        } else if (box.box) {
+            // 对象格式: {box: {x1, y1, x2, y2}, name, conf}
+            x1 = box.box.x1 ?? box.box.xmin
+            y1 = box.box.y1 ?? box.box.ymin
+            x2 = box.box.x2 ?? box.box.xmax
+            y2 = box.box.y2 ?? box.box.ymax
+            conf = box.conf ?? box.confidence ?? 0
+            name = box.name || box.class_name || `Class ${box.cls || 0}`
+        } else {
+            // 备用格式: {xmin, ymin, xmax, ymax, confidence, name}
+            x1 = box.xmin ?? box.x1 ?? 0
+            y1 = box.ymin ?? box.y1 ?? 0
+            x2 = box.xmax ?? box.x2 ?? 0
+            y2 = box.ymax ?? box.y2 ?? 0
+            conf = box.confidence ?? box.conf ?? 0
+            name = box.name || box.class_name || `Class ${box.class ?? 0}`
+        }
+
+        return { x1, y1, x2, y2, conf, name }
+    })
+
+    // 按置信度排序，取最高
+    normalizedBoxes.sort((a, b) => b.conf - a.conf)
+    return normalizedBoxes[0]
+}
+
+// 多目标增强进度跟踪
+const enhanceProgress = reactive({
+    current: 0,
+    total: 0,
+    skipped: 0,
+    failed: 0,
+    currentTargetName: ''
+})
+
+// 筛选所有有效目标（多目标增强）
+function filterValidBboxes(): { x1: number, y1: number, x2: number, y2: number, conf: number, name: string, index: number }[] {
+    if (!detectBboxes.value || detectBboxes.value.length === 0) {
+        return []
+    }
+
+    const MIN_ROI_SIZE = 32
+    const MIN_CONF = 0.25
+    const MAX_TARGETS = 5  // 最多增强5个目标，避免时间过长
+
+    const validBoxes: { x1: number, y1: number, x2: number, y2: number, conf: number, name: string, index: number }[] = []
+
+    detectBboxes.value.forEach((box: any, index: number) => {
+        let x1, y1, x2, y2, conf, name
+
+        if (Array.isArray(box)) {
+            [x1, y1, x2, y2, conf] = box
+            name = `Class ${box[5] || 0}`
+        } else if (box.box) {
+            x1 = box.box.x1 ?? box.box.xmin
+            y1 = box.box.y1 ?? box.box.ymin
+            x2 = box.box.x2 ?? box.box.xmax
+            y2 = box.box.y2 ?? box.box.ymax
+            conf = box.conf ?? box.confidence ?? 0
+            name = box.name || box.class_name || `Class ${box.cls || 0}`
+        } else {
+            x1 = box.xmin ?? box.x1 ?? 0
+            y1 = box.ymin ?? box.y1 ?? 0
+            x2 = box.xmax ?? box.x2 ?? 0
+            y2 = box.ymax ?? box.y2 ?? 0
+            conf = box.confidence ?? box.conf ?? 0
+            name = box.name || box.class_name || `Class ${box.class ?? 0}`
+        }
+
+        const roiW = Math.abs(x2 - x1)
+        const roiH = Math.abs(y2 - y1)
+
+        // 筛选条件：尺寸足够 + 置信度足够
+        if (roiW >= MIN_ROI_SIZE && roiH >= MIN_ROI_SIZE && conf >= MIN_CONF) {
+            validBoxes.push({ x1, y1, x2, y2, conf, name, index })
+        }
+    })
+
+    // 按置信度降序排序，取前 MAX_TARGETS 个
+    validBoxes.sort((a, b) => b.conf - a.conf)
+    return validBoxes.slice(0, MAX_TARGETS)
+}
+
+// 当前增强统计信息（用于显示）
+const enhanceSummary = computed(() => {
+    if (enhanceStatus.value === 'idle') return null
+    return {
+        total: detectCount.value,
+        enhanced: enhanceProgress.total - enhanceProgress.skipped - enhanceProgress.failed,
+        skipped: enhanceProgress.skipped,
+        failed: enhanceProgress.failed
+    }
+})
+
+// 获取最佳目标及其 mask（用于 mask 级精确增强）
+function getBestTargetWithMask(): { 
+    target: { x1: number, y1: number, x2: number, y2: number, conf: number, name: string } | null,
+    maskData: MaskData | null 
+} {
+    console.log('[Workflow] getBestTargetWithMask(): maskData.value =', maskData.value?.length || 0)
+    
+    // 从 maskData 中选取最高置信度的目标
+    if (!maskData.value || maskData.value.length === 0) {
+        console.log('[Workflow] maskData 为空，无法获取带 mask 的目标')
+        return { target: null, maskData: null }
+    }
+    
+    // 按置信度排序
+    const sortedMasks = [...maskData.value].sort((a, b) => b.conf - a.conf)
+    const bestMask = sortedMasks[0]
+    
+    // 构造 target
+    const target = {
+        x1: bestMask.bbox[0],
+        y1: bestMask.bbox[1],
+        x2: bestMask.bbox[2],
+        y2: bestMask.bbox[3],
+        conf: bestMask.conf,
+        name: bestMask.name
+    }
+    
+    console.log(`[Workflow] 从 maskData 选中目标: ${target.name}, conf: ${target.conf}`)
+    return { target, maskData: bestMask }
+}
+
+// 从 detectBboxes 获取最佳目标（fallback，用于 bbox 增强）
+function getBestTargetFromDetectBboxes(): { x1: number, y1: number, x2: number, y2: number, conf: number, name: string } | null {
+    console.log('[Workflow] getBestTargetFromDetectBboxes(): detectBboxes.value =', detectBboxes.value?.length || 0)
+    
+    if (!detectBboxes.value || detectBboxes.value.length === 0) {
+        console.log('[Workflow] detectBboxes 为空')
+        return null
+    }
+    
+    // 统一转换为标准格式并排序
+    const normalizedBoxes = detectBboxes.value.map((box: any) => {
+        let x1, y1, x2, y2, conf, name
+
+        if (Array.isArray(box)) {
+            [x1, y1, x2, y2, conf] = box
+            name = `Class ${box[5] || 0}`
+        } else if (box.box) {
+            x1 = box.box.x1 ?? box.box.xmin
+            y1 = box.box.y1 ?? box.box.ymin
+            x2 = box.box.x2 ?? box.box.xmax
+            y2 = box.box.y2 ?? box.box.ymax
+            conf = box.conf ?? box.confidence ?? 0
+            name = box.name || box.class_name || `Class ${box.cls || 0}`
+        } else {
+            x1 = box.xmin ?? box.x1 ?? 0
+            y1 = box.ymin ?? box.y1 ?? 0
+            x2 = box.xmax ?? box.x2 ?? 0
+            y2 = box.ymax ?? box.y2 ?? 0
+            conf = box.confidence ?? box.conf ?? 0
+            name = box.name || box.class_name || `Class ${box.class ?? 0}`
+        }
+
+        return { x1, y1, x2, y2, conf, name }
+    })
+
+    // 按置信度排序，取最高
+    normalizedBoxes.sort((a, b) => b.conf - a.conf)
+    const best = normalizedBoxes[0]
+    
+    console.log(`[Workflow] 从 detectBboxes 选中目标: ${best.name}, conf: ${best.conf}`)
+    return best
+}
+
+// 使用 mask 进行精确增强
+async function enhanceWithMask(
+    imageFile: File | Blob, 
+    target: { x1: number, y1: number, x2: number, y2: number, name: string },
+    mask: MaskData
+): Promise<Blob> {
+    console.log(`[Workflow] 使用 mask 精确增强: ${target.name}, bbox: [${target.x1}, ${target.y1}, ${target.x2}, ${target.y2}]`)
+    
+    const result = await callModels('enhance-mask', {
+        file: imageFile,
+        bbox: JSON.stringify([target.x1, target.y1, target.x2, target.y2]),
+        mask: mask.mask  // base64 mask
+    }, 'image/jpeg')
+    
+    return result as Blob
+}
+
+// 使用 bbox 进行 ROI 增强（fallback）
+async function enhanceWithBbox(
+    imageFile: File | Blob,
+    target: { x1: number, y1: number, x2: number, y2: number, name: string }
+): Promise<Blob> {
+    console.log(`[Workflow] 使用 bbox 增强(fallback): ${target.name}`)
+    
+    const result = await callModels('enhance-roi', {
+        file: imageFile,
+        bbox: JSON.stringify([target.x1, target.y1, target.x2, target.y2])
+    }, 'image/jpeg')
+    
+    return result as Blob
+}
+
 async function runEnhance(): Promise<boolean> {
     if (!currentFile.value) return false
 
-    console.log('[Workflow] 步骤3: 开始图像增强')
+    console.log('[Workflow] ========== 步骤3: 开始图像增强 ==========')
+    console.log('[Workflow] 当前状态:')
+    console.log('  - detectCount:', detectCount.value)
+    console.log('  - detectBboxes.length:', detectBboxes.value?.length || 0)
+    console.log('  - maskData.length:', maskData.value?.length || 0)
+    
     enhanceStatus.value = 'running'
+    enhanceProgress.current = 1
+    enhanceProgress.total = 1
+    enhanceProgress.currentTargetName = ''
     const startTime = Date.now()
 
-    try {
-        const result = await callModels('enhance', { file: currentFile.value }, 'image/jpeg')
-        console.log('[Workflow] 图像增强接口返回, Blob大小:', result instanceof Blob ? result.size : 'N/A')
-        
-        if (enhanceImage.value) {
-            URL.revokeObjectURL(enhanceImage.value)
-        }
-        enhanceImage.value = URL.createObjectURL(result as Blob)
-        console.log('[Workflow] 图像增强完成, enhanceImage已赋值, totalDuration即将更新')
-
-        enhanceStatus.value = 'success'
-        stepDurations.enhance = Date.now() - startTime
-        return true
-
-    } catch (error) {
+    // 步骤1: 尝试获取带 mask 的最佳目标
+    let { target, maskData: bestMask } = getBestTargetWithMask()
+    
+    // 如果 maskData 没有目标，尝试从 detectBboxes 获取
+    if (!target) {
+        console.log('[Workflow] maskData 无有效目标，尝试从 detectBboxes 获取...')
+        target = getBestTargetFromDetectBboxes()
+        bestMask = null
+    }
+    
+    // 如果还是没有目标，才真正报错
+    if (!target) {
+        console.error('[Workflow] 增强失败: 未检测到有效目标')
+        console.error('[Workflow] 请检查:')
+        console.error('  1. detect 步骤是否成功')
+        console.error('  2. detectBboxes 是否有数据')
+        console.error('  3. maskData 是否有数据')
         enhanceStatus.value = 'error'
         stepDurations.enhance = Date.now() - startTime
-        ElMessage.error('图像增强失败')
+        errorMessage.value = '未检测到目标，无法进行增强'
+        ElMessage.error('未检测到目标，无法进行增强')
         return false
     }
+    
+    enhanceProgress.currentTargetName = target.name
+    console.log(`[Workflow] 最终选中目标: ${target.name} (conf: ${target.conf.toFixed(3)})`)
+    console.log(`[Workflow] 使用增强方式: ${bestMask ? 'mask 精确增强' : 'bbox 增强'}`)
+
+    // 步骤2: 优先尝试 mask 精确增强，失败则 fallback 到 bbox
+    let resultBlob: Blob
+    let usedMask = false
+    
+    if (bestMask) {
+        // 有 mask 数据，尝试 mask 精确增强
+        try {
+            console.log('[Workflow] 尝试 mask 级精确增强...')
+            resultBlob = await enhanceWithMask(currentFile.value, target, bestMask)
+            usedMask = true
+            console.log('[Workflow] mask 精确增强成功')
+        } catch (error: any) {
+            console.error('[Workflow] mask 精确增强失败:', error)
+            console.log('[Workflow] fallback 到 bbox 增强...')
+            
+            try {
+                resultBlob = await enhanceWithBbox(currentFile.value, target)
+                console.log('[Workflow] bbox 增强成功(fallback)')
+            } catch (fallbackError: any) {
+                console.error('[Workflow] bbox 增强也失败:', fallbackError)
+                enhanceStatus.value = 'error'
+                stepDurations.enhance = Date.now() - startTime
+                errorMessage.value = '图像增强失败'
+                ElMessage.error('图像增强失败')
+                return false
+            }
+        }
+    } else {
+        // 无 mask 数据，直接使用 bbox 增强
+        console.log('[Workflow] 无 mask 数据，使用 bbox 增强')
+        try {
+            resultBlob = await enhanceWithBbox(currentFile.value, target)
+        } catch (error: any) {
+            console.error('[Workflow] bbox 增强失败:', error)
+            enhanceStatus.value = 'error'
+            stepDurations.enhance = Date.now() - startTime
+            errorMessage.value = '图像增强失败'
+            ElMessage.error('图像增强失败')
+            return false
+        }
+    }
+
+    // 步骤3: 设置结果
+    if (enhanceImage.value) {
+        URL.revokeObjectURL(enhanceImage.value)
+    }
+    enhanceImage.value = URL.createObjectURL(resultBlob)
+
+    enhanceStatus.value = 'success'
+    stepDurations.enhance = Date.now() - startTime
+    
+    if (usedMask) {
+        console.log('[Workflow] mask 级精确增强完成')
+        ElMessage.success('mask 级精确增强完成')
+    } else {
+        console.log('[Workflow] bbox 增强完成')
+        ElMessage.success('mask 级精确增强完成')
+    }
+    
+    return true
 }
 
 function resetWorkflow() {
@@ -930,6 +1316,22 @@ function formatDuration(ms: number): string {
     border-radius: 4px;
     text-align: center;
     font-size: 13px;
+}
+
+/* 目标信息展示 */
+.target-info {
+    margin-bottom: 8px;
+    padding: 4px 8px;
+    background-color: var(--el-fill-color-lighter);
+    border-radius: 4px;
+    text-align: center;
+    font-size: 12px;
+}
+
+.target-hint {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 11px;
 }
 
 .total-duration {
