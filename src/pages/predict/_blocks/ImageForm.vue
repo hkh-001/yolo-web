@@ -4,7 +4,7 @@ import {
     type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
     ElPopconfirm
 } from 'element-plus';
-import { Delete, FolderAdd, Refresh, UploadFilled } from '@element-plus/icons-vue';
+import { Delete, FolderAdd, Refresh, UploadFilled, Picture } from '@element-plus/icons-vue';
 import { defaultsPredictData, type ImageResponse, type PredictData, type SavedPredictData } from '@/utils/api/predict';
 import * as api from "@/utils/api"
 import type { ModelInfo } from '@/utils/api';
@@ -427,14 +427,22 @@ function downloadResult() {
     <div class="detection-container">
         <!-- 页面头部 -->
         <div class="page-header">
-            <div class="header-left">
-                <span v-if="queryTaskName" class="task-info">
-                    <span class="task-label">任务：</span>
-                    <span class="task-name">{{ queryTaskName }}</span>
-                    <ElButton :circle="true" :icon="Refresh" class="refresh-btn" @click="loadFromTaskQuery" />
-                </span>
+            <div class="header-main">
+                <div class="header-icon">
+                    <ElIcon :size="28"><Picture /></ElIcon>
+                </div>
+                <div class="header-content">
+                    <h1 class="page-title">{{ title }}</h1>
+                    <p class="page-subtitle">上传图片并执行目标检测</p>
+                </div>
             </div>
-            <h1 class="page-title">{{ title }}</h1>
+            <div class="header-side" v-if="queryTaskName">
+                <div class="task-tag">
+                    <span class="task-tag-label">当前任务</span>
+                    <span class="task-tag-name">{{ queryTaskName }}</span>
+                    <ElButton :circle="true" :icon="Refresh" size="small" class="task-refresh-btn" @click="loadFromTaskQuery" />
+                </div>
+            </div>
         </div>
 
         <!-- 主内容区 -->
@@ -687,42 +695,88 @@ function downloadResult() {
     align-items: center;
     justify-content: space-between;
     margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 1.25rem;
+    background: rgba(30, 30, 40, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
 }
 
-.header-left {
-    flex: 1;
-}
-
-.task-info {
+.header-main {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 1rem;
+    gap: 0.875rem;
 }
 
-.task-label {
-    color: rgba(255, 255, 255, 0.6);
-}
-
-.task-name {
-    font-weight: 600;
+.header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.2), rgba(103, 194, 58, 0.15));
+    border: 1px solid rgba(64, 158, 255, 0.25);
+    border-radius: 10px;
     color: #409eff;
 }
 
-.refresh-btn {
-    margin-left: 0.5rem;
+.header-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .page-title {
-    font-size: 1.75rem;
+    font-size: 1.5rem;
     font-weight: 700;
     margin: 0;
     background: linear-gradient(90deg, #409eff, #67c23a);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+    line-height: 1.2;
+}
+
+.page-subtitle {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.header-side {
+    flex-shrink: 0;
+}
+
+.task-tag {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(64, 158, 255, 0.1);
+    border: 1px solid rgba(64, 158, 255, 0.2);
+    border-radius: 8px;
+}
+
+.task-tag-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.task-tag-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #409eff;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.task-refresh-btn {
+    margin-left: 0.25rem;
 }
 
 /* ===== 主内容区：双栏布局 ===== */
@@ -1034,19 +1088,40 @@ function downloadResult() {
 }
 
 /* ===== 响应式调整 ===== */
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 0.875rem 1rem;
+    }
+    
+    .header-side {
+        width: 100%;
+    }
+    
+    .task-tag {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
+
 @media (max-width: 576px) {
     .detection-container {
         padding: 0 0.75rem;
     }
     
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.75rem;
+    .header-icon {
+        width: 40px;
+        height: 40px;
     }
     
     .page-title {
-        font-size: 1.5rem;
+        font-size: 1.25rem;
+    }
+    
+    .page-subtitle {
+        font-size: 0.75rem;
     }
     
     .param-row {
