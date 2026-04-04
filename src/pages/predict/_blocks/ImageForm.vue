@@ -456,9 +456,14 @@ function downloadResult() {
                     </div>
                     <div class="card-body">
                         <ElForm :model="form" label-position="top">
-                            <ElFormItem label="选择模型">
-                                <div class="model-select-row">
-                                    <ElSelect v-model="selectedModelId" class="flex-1">
+                            <!-- 模型选择区 -->
+                            <div class="model-section">
+                                <div class="section-label">
+                                    <span class="label-text">检测模型</span>
+                                    <span class="label-desc">选择用于目标检测的算法模型</span>
+                                </div>
+                                <div class="model-select-wrapper">
+                                    <ElSelect v-model="selectedModelId" class="model-select" popper-class="dark-select">
                                         <ElSelect.Option 
                                             v-for="model in DISPLAY_MODELS" 
                                             :key="model.displayName" 
@@ -466,11 +471,24 @@ function downloadResult() {
                                             :value="model.displayName" 
                                         />
                                     </ElSelect>
-                                    <ElButton :icon="Refresh" @click="updateModels" class="refresh-model-btn" />
+                                    <ElButton 
+                                        :icon="Refresh" 
+                                        @click="updateModels" 
+                                        class="refresh-btn"
+                                        title="刷新模型列表"
+                                    />
                                 </div>
-                            </ElFormItem>
+                            </div>
                             
-                            <ElFormItem label="上传图片">
+                            <!-- 分隔线 -->
+                            <div class="section-divider"></div>
+                            
+                            <!-- 上传区域 -->
+                            <div class="upload-section">
+                                <div class="section-label">
+                                    <span class="label-text">上传图片</span>
+                                    <span class="label-desc">支持拖拽或点击上传</span>
+                                </div>
                                 <ElUpload 
                                     ref="uploadEl" 
                                     drag 
@@ -480,17 +498,23 @@ function downloadResult() {
                                     :limit="1"
                                     class="upload-area"
                                 >
-                                    <ElIcon class="upload-icon">
-                                        <UploadFilled />
-                                    </ElIcon>
-                                    <div class="upload-text">
-                                        拖拽图片至此或<em>点击上传</em>
+                                    <div class="upload-content">
+                                        <div class="upload-icon-wrapper">
+                                            <ElIcon class="upload-icon" :size="32">
+                                                <UploadFilled />
+                                            </ElIcon>
+                                        </div>
+                                        <div class="upload-text-main">
+                                            <span class="upload-primary">拖拽图片至此</span>
+                                            <span class="upload-secondary">或点击选择文件</span>
+                                        </div>
+                                        <div class="upload-meta">
+                                            <span class="upload-format">JPG / PNG</span>
+                                            <span class="upload-limit">单张图片</span>
+                                        </div>
                                     </div>
-                                    <template #tip>
-                                        <div class="upload-tip">支持 JPG/PNG 格式图片</div>
-                                    </template>
                                 </ElUpload>
-                            </ElFormItem>
+                            </div>
                         </ElForm>
                     </div>
                 </div>
@@ -852,57 +876,189 @@ function downloadResult() {
     flex-direction: column;
 }
 
-/* ===== 模型选择 ===== */
-.model-select-row {
+/* ===== 模型选择区 ===== */
+.model-section {
+    margin-bottom: 0.5rem;
+}
+
+.section-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.label-text {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.label-desc {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.model-select-wrapper {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
-.refresh-model-btn {
+.model-select {
+    flex: 1;
+}
+
+.model-select :deep(.el-input__wrapper) {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+
+.model-select :deep(.el-input__wrapper:hover) {
+    box-shadow: 0 0 0 1px rgba(64, 158, 255, 0.3) inset;
+}
+
+.refresh-btn {
     flex-shrink: 0;
+    padding: 0 0.75rem;
+}
+
+/* ===== 分隔线 ===== */
+.section-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    margin: 1.25rem 0;
 }
 
 /* ===== 上传区域 ===== */
+.upload-section {
+    margin-top: 0.5rem;
+}
+
 :deep(.upload-area .el-upload) {
     width: 100%;
 }
 
 :deep(.upload-area .el-upload-dragger) {
+    width: 100%;
     background: rgba(255, 255, 255, 0.02);
-    border: 2px dashed rgba(255, 255, 255, 0.15);
-    border-radius: 8px;
-    padding: 2rem 1rem;
-    transition: all 0.3s ease;
+    border: 2px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    padding: 1.5rem 1rem;
+    transition: all 0.25s ease;
 }
 
 :deep(.upload-area .el-upload-dragger:hover) {
-    background: rgba(64, 158, 255, 0.05);
-    border-color: rgba(64, 158, 255, 0.5);
+    background: rgba(64, 158, 255, 0.06);
+    border-color: rgba(64, 158, 255, 0.4);
+}
+
+:deep(.upload-area .el-upload-dragger.is-dragover) {
+    background: rgba(64, 158, 255, 0.1);
+    border-color: #409eff;
+    border-style: solid;
+}
+
+.upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.upload-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: rgba(64, 158, 255, 0.1);
+    border: 1px solid rgba(64, 158, 255, 0.2);
+    border-radius: 50%;
+    transition: all 0.25s ease;
+}
+
+:deep(.upload-area .el-upload-dragger:hover) .upload-icon-wrapper {
+    background: rgba(64, 158, 255, 0.15);
+    border-color: rgba(64, 158, 255, 0.35);
+    transform: scale(1.02);
 }
 
 .upload-icon {
-    font-size: 2.5rem;
-    color: rgba(255, 255, 255, 0.4);
-    margin-bottom: 0.75rem;
-}
-
-.upload-text {
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.9375rem;
-}
-
-.upload-text em {
     color: #409eff;
-    font-style: normal;
-    font-weight: 500;
 }
 
-.upload-tip {
-    font-size: 0.75rem;
+.upload-text-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.upload-primary {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.upload-secondary {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.upload-meta {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.upload-format,
+.upload-limit {
+    font-size: 0.6875rem;
     color: rgba(255, 255, 255, 0.4);
+    padding: 0.125rem 0.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ===== 上传文件列表样式优化 ===== */
+:deep(.upload-area .el-upload-list) {
+    margin-top: 0.75rem;
+}
+
+:deep(.upload-area .el-upload-list__item) {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
     margin-top: 0.5rem;
-    text-align: center;
+    transition: all 0.2s ease;
+}
+
+:deep(.upload-area .el-upload-list__item:hover) {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(64, 158, 255, 0.2);
+}
+
+:deep(.upload-area .el-upload-list__item-name) {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.8125rem;
+}
+
+:deep(.upload-area .el-upload-list__item-file-name) {
+    color: rgba(255, 255, 255, 0.6);
+}
+
+:deep(.upload-area .el-upload-list__item-status-label) {
+    color: #67c23a;
+}
+
+:deep(.upload-area .el-upload-list__item .el-icon--close) {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+:deep(.upload-area .el-upload-list__item .el-icon--close:hover) {
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* ===== 参数项样式 ===== */
