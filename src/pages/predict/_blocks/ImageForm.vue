@@ -525,12 +525,21 @@ function downloadResult() {
                         <span class="card-title">检测参数</span>
                     </div>
                     <div class="card-body">
-                        <ElForm :model="form" label-position="top">
+                        <!-- A. 核心阈值参数 -->
+                        <div class="param-section">
+                            <div class="section-subtitle">
+                                <span class="subtitle-icon">●</span>
+                                <span class="subtitle-text">阈值设置</span>
+                            </div>
+                            
                             <!-- Confidence 置信度 -->
                             <div class="param-item">
                                 <div class="param-header">
-                                    <span class="param-name">置信度阈值</span>
-                                    <span class="param-value">{{ form.conf.toFixed(2) }}</span>
+                                    <div class="param-title-group">
+                                        <span class="param-name">置信度阈值</span>
+                                        <span class="param-hint">Confidence</span>
+                                    </div>
+                                    <span class="param-badge">{{ form.conf.toFixed(2) }}</span>
                                 </div>
                                 <ElSlider v-model="form.conf" :step="0.01" :min="0" :max="1" show-stops />
                             </div>
@@ -538,49 +547,71 @@ function downloadResult() {
                             <!-- IoU 阈值 -->
                             <div class="param-item">
                                 <div class="param-header">
-                                    <span class="param-name">IoU 阈值 (NMS)</span>
-                                    <span class="param-value">{{ form.iou.toFixed(2) }}</span>
+                                    <div class="param-title-group">
+                                        <span class="param-name">IoU 阈值</span>
+                                        <span class="param-hint">NMS 交并比</span>
+                                    </div>
+                                    <span class="param-badge">{{ form.iou.toFixed(2) }}</span>
                                 </div>
                                 <ElSlider v-model="form.iou" :step="0.01" :min="0" :max="1" show-stops />
                             </div>
+                        </div>
 
-                            <!-- 数字输入参数 -->
+                        <!-- 分隔线 -->
+                        <div class="param-divider"></div>
+
+                        <!-- B. 推理配置参数 -->
+                        <div class="param-section">
+                            <div class="section-subtitle">
+                                <span class="subtitle-icon">●</span>
+                                <span class="subtitle-text">推理配置</span>
+                            </div>
+                            
+                            <!-- 数值输入参数 -->
                             <div class="param-row">
                                 <div class="param-item compact">
                                     <div class="param-header">
-                                        <span class="param-name">图像大小 (imgsz)</span>
+                                        <div class="param-title-group">
+                                            <span class="param-name">图像大小</span>
+                                            <span class="param-hint">imgsz</span>
+                                        </div>
                                     </div>
                                     <ElInputNumber v-model="form.imgsz" :step="10" :min="16" :max="3656" class="full-width" />
                                 </div>
                                 <div class="param-item compact">
                                     <div class="param-header">
-                                        <span class="param-name">最大检测数 (max_det)</span>
+                                        <div class="param-title-group">
+                                            <span class="param-name">最大检测数</span>
+                                            <span class="param-hint">max_det</span>
+                                        </div>
                                     </div>
                                     <ElInputNumber v-model="form.max_det" :min="1" :max="500" class="full-width" />
                                 </div>
                             </div>
-                        </ElForm>
-                    </div>
-                </div>
 
-                <!-- 高级选项卡片 -->
-                <div class="panel-card">
-                    <div class="card-header">
-                        <span class="card-title">高级选项</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="switch-list">
-                            <div class="switch-item" title="FP16半精度推理可加速，需GPU支持">
-                                <span class="switch-label">FP16 半精度推理</span>
-                                <ElSwitch v-model="form.half" />
-                            </div>
-                            <div class="switch-item">
-                                <span class="switch-label">测试时间增强 (TTA)</span>
-                                <ElSwitch v-model="form.augment" />
-                            </div>
-                            <div class="switch-item">
-                                <span class="switch-label">类别无关 NMS</span>
-                                <ElSwitch v-model="form.agnostic_nms" />
+                            <!-- 开关选项 -->
+                            <div class="switch-group">
+                                <div class="switch-item">
+                                    <div class="switch-info">
+                                        <span class="switch-name">FP16 半精度推理</span>
+                                        <span class="switch-desc">加速推理，需 GPU 支持</span>
+                                    </div>
+                                    <ElSwitch v-model="form.half" />
+                                </div>
+                                <div class="switch-item">
+                                    <div class="switch-info">
+                                        <span class="switch-name">测试时间增强</span>
+                                        <span class="switch-desc">TTA 提升精度</span>
+                                    </div>
+                                    <ElSwitch v-model="form.augment" />
+                                </div>
+                                <div class="switch-item">
+                                    <div class="switch-info">
+                                        <span class="switch-name">类别无关 NMS</span>
+                                        <span class="switch-desc">跨类别去重</span>
+                                    </div>
+                                    <ElSwitch v-model="form.agnostic_nms" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1061,6 +1092,43 @@ function downloadResult() {
     color: rgba(255, 255, 255, 0.8);
 }
 
+/* ===== 参数区域分组 ===== */
+.param-section {
+    margin-bottom: 1rem;
+}
+
+.param-section:last-child {
+    margin-bottom: 0;
+}
+
+.section-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.subtitle-icon {
+    font-size: 0.5rem;
+    color: #409eff;
+}
+
+.subtitle-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.param-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    margin: 1.25rem 0;
+}
+
 /* ===== 参数项样式 ===== */
 .param-item {
     margin-bottom: 1.25rem;
@@ -1077,8 +1145,14 @@ function downloadResult() {
 .param-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
+    align-items: flex-start;
+    margin-bottom: 0.625rem;
+}
+
+.param-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
 }
 
 .param-name {
@@ -1087,18 +1161,28 @@ function downloadResult() {
     color: rgba(255, 255, 255, 0.9);
 }
 
-.param-value {
+.param-hint {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.param-badge {
+    background: rgba(64, 158, 255, 0.15);
+    border: 1px solid rgba(64, 158, 255, 0.25);
+    border-radius: 4px;
+    padding: 0.125rem 0.5rem;
     color: #409eff;
     font-weight: 600;
-    font-size: 0.875rem;
+    font-size: 0.8125rem;
     font-family: 'Consolas', monospace;
+    min-width: 2.5rem;
+    text-align: center;
 }
 
 .param-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
-    margin-top: 1rem;
 }
 
 .param-item .full-width {
@@ -1109,26 +1193,47 @@ function downloadResult() {
     width: 100%;
 }
 
-/* ===== 开关列表 ===== */
-.switch-list {
+/* ===== 开关组样式 ===== */
+.switch-group {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.625rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .switch-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem;
+    padding: 0.625rem 0.75rem;
     background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
 }
 
-.switch-label {
-    font-size: 0.875rem;
-    color: rgba(255, 255, 255, 0.8);
+.switch-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.switch-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.switch-name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.switch-desc {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.4);
 }
 
 /* ===== 操作按钮 ===== */
