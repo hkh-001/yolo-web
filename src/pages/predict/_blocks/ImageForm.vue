@@ -2,9 +2,9 @@
 import {
     ElForm, ElSelect, ElUpload, ElIcon, ElSlider, ElSwitch, ElInputNumber, ElInputTag, ElButton, ElRadioGroup, ElRadio, ElInput,
     type UploadUserFile, type UploadProps, type UploadInstance, type UploadRawFile, genFileId,
-    ElPopconfirm
+    ElPopconfirm, ElTooltip
 } from 'element-plus';
-import { Delete, FolderAdd, Refresh, UploadFilled, Picture } from '@element-plus/icons-vue';
+import { Delete, FolderAdd, Refresh, UploadFilled, Picture, InfoFilled, CircleCheck, Operation, Cpu, SwitchButton, VideoPlay, Brush, DocumentChecked, View, Download, Picture as PictureIcon, DataAnalysis } from '@element-plus/icons-vue';
 import { defaultsPredictData, type ImageResponse, type PredictData, type SavedPredictData } from '@/utils/api/predict';
 import * as api from "@/utils/api"
 import type { ModelInfo } from '@/utils/api';
@@ -528,7 +528,7 @@ function downloadResult() {
                         <!-- A. 核心阈值参数 -->
                         <div class="param-section">
                             <div class="section-subtitle">
-                                <span class="subtitle-icon">●</span>
+                                <ElIcon class="subtitle-icon" :size="14"><CircleCheck /></ElIcon>
                                 <span class="subtitle-text">阈值设置</span>
                             </div>
                             
@@ -537,9 +537,14 @@ function downloadResult() {
                                 <div class="param-header">
                                     <div class="param-title-group">
                                         <span class="param-name">置信度阈值</span>
-                                        <span class="param-hint">Confidence</span>
+                                        <ElTooltip content="只显示置信度高于此值的目标，降低可减少误检" placement="top">
+                                            <ElIcon class="param-info-icon" :size="13"><InfoFilled /></ElIcon>
+                                        </ElTooltip>
                                     </div>
                                     <span class="param-badge">{{ form.conf.toFixed(2) }}</span>
+                                </div>
+                                <div class="param-hint-row">
+                                    <span class="param-hint">Confidence — 过滤低置信度检测结果</span>
                                 </div>
                                 <ElSlider v-model="form.conf" :step="0.01" :min="0" :max="1" show-stops />
                             </div>
@@ -549,9 +554,14 @@ function downloadResult() {
                                 <div class="param-header">
                                     <div class="param-title-group">
                                         <span class="param-name">IoU 阈值</span>
-                                        <span class="param-hint">NMS 交并比</span>
+                                        <ElTooltip content="非极大值抑制的重叠阈值，用于去除重复检测框" placement="top">
+                                            <ElIcon class="param-info-icon" :size="13"><InfoFilled /></ElIcon>
+                                        </ElTooltip>
                                     </div>
                                     <span class="param-badge">{{ form.iou.toFixed(2) }}</span>
+                                </div>
+                                <div class="param-hint-row">
+                                    <span class="param-hint">NMS 交并比 — 控制去重严格程度</span>
                                 </div>
                                 <ElSlider v-model="form.iou" :step="0.01" :min="0" :max="1" show-stops />
                             </div>
@@ -563,7 +573,7 @@ function downloadResult() {
                         <!-- B. 推理配置参数 -->
                         <div class="param-section">
                             <div class="section-subtitle">
-                                <span class="subtitle-icon">●</span>
+                                <ElIcon class="subtitle-icon" :size="14"><Cpu /></ElIcon>
                                 <span class="subtitle-text">推理配置</span>
                             </div>
                             
@@ -573,44 +583,56 @@ function downloadResult() {
                                     <div class="param-header">
                                         <div class="param-title-group">
                                             <span class="param-name">图像大小</span>
-                                            <span class="param-hint">imgsz</span>
+                                            <ElTooltip content="模型输入尺寸，较大值精度更高但速度更慢" placement="top">
+                                                <ElIcon class="param-info-icon" :size="13"><InfoFilled /></ElIcon>
+                                            </ElTooltip>
                                         </div>
                                     </div>
+                                    <span class="param-inline-hint">imgsz</span>
                                     <ElInputNumber v-model="form.imgsz" :step="10" :min="16" :max="3656" class="full-width" />
                                 </div>
                                 <div class="param-item compact">
                                     <div class="param-header">
                                         <div class="param-title-group">
                                             <span class="param-name">最大检测数</span>
-                                            <span class="param-hint">max_det</span>
+                                            <ElTooltip content="单张图像最多返回的检测框数量" placement="top">
+                                                <ElIcon class="param-info-icon" :size="13"><InfoFilled /></ElIcon>
+                                            </ElTooltip>
                                         </div>
                                     </div>
+                                    <span class="param-inline-hint">max_det</span>
                                     <ElInputNumber v-model="form.max_det" :min="1" :max="500" class="full-width" />
                                 </div>
                             </div>
 
                             <!-- 开关选项 -->
-                            <div class="switch-group">
-                                <div class="switch-item">
-                                    <div class="switch-info">
-                                        <span class="switch-name">FP16 半精度推理</span>
-                                        <span class="switch-desc">加速推理，需 GPU 支持</span>
-                                    </div>
-                                    <ElSwitch v-model="form.half" />
+                            <div class="switch-section">
+                                <div class="switch-section-header">
+                                    <ElIcon class="switch-section-icon" :size="13"><SwitchButton /></ElIcon>
+                                    <span class="switch-section-title">推理选项</span>
                                 </div>
-                                <div class="switch-item">
-                                    <div class="switch-info">
-                                        <span class="switch-name">测试时间增强</span>
-                                        <span class="switch-desc">TTA 提升精度</span>
+                                <div class="switch-group">
+                                    <div class="switch-item">
+                                        <div class="switch-info">
+                                            <span class="switch-name">FP16 半精度推理</span>
+                                            <span class="switch-desc">加速推理，需 GPU 支持</span>
+                                        </div>
+                                        <ElSwitch v-model="form.half" />
                                     </div>
-                                    <ElSwitch v-model="form.augment" />
-                                </div>
-                                <div class="switch-item">
-                                    <div class="switch-info">
-                                        <span class="switch-name">类别无关 NMS</span>
-                                        <span class="switch-desc">跨类别去重</span>
+                                    <div class="switch-item">
+                                        <div class="switch-info">
+                                            <span class="switch-name">测试时间增强 (TTA)</span>
+                                            <span class="switch-desc">多尺度推理提升精度</span>
+                                        </div>
+                                        <ElSwitch v-model="form.augment" />
                                     </div>
-                                    <ElSwitch v-model="form.agnostic_nms" />
+                                    <div class="switch-item">
+                                        <div class="switch-info">
+                                            <span class="switch-name">类别无关 NMS</span>
+                                            <span class="switch-desc">不同类别间也进行去重</span>
+                                        </div>
+                                        <ElSwitch v-model="form.agnostic_nms" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -618,19 +640,44 @@ function downloadResult() {
                 </div>
 
                 <!-- 输出与操作卡片 -->
-                <div class="panel-card">
+                <div class="panel-card action-card">
                     <div class="card-header">
                         <span class="card-title">输出与操作</span>
                     </div>
                     <div class="card-body">
-                        <ElForm :model="form" label-position="top">
-                            <ElFormItem label="输出方式">
-                                <ElRadioGroup v-model="accept" size="small">
-                                    <ElRadio v-for="option in acceptOptions" :key="option.value" :value="option.value">
-                                        {{ option.name }}
-                                    </ElRadio>
+                        <!-- 输出设置区 -->
+                        <div class="output-section">
+                            <div class="section-subtitle">
+                                <ElIcon class="subtitle-icon" :size="14"><VideoPlay /></ElIcon>
+                                <span class="subtitle-text">结果输出</span>
+                            </div>
+                            <div class="output-options">
+                                <ElRadioGroup v-model="accept" class="output-radio-group">
+                                    <div 
+                                        v-for="option in acceptOptions" 
+                                        :key="option.value" 
+                                        class="output-option"
+                                        :class="{ active: accept === option.value }"
+                                        @click="accept = option.value"
+                                    >
+                                        <ElRadio :value="option.value" class="hidden-radio">
+                                            <span class="radio-label">{{ option.name }}</span>
+                                        </ElRadio>
+                                        <span class="option-desc">{{ option.id === 'blob' ? '直接下载结果文件' : '在页面显示检测框' }}</span>
+                                    </div>
                                 </ElRadioGroup>
-                            </ElFormItem>
+                            </div>
+                        </div>
+
+                        <!-- 分隔线 -->
+                        <div class="action-divider"></div>
+                        
+                        <!-- 操作按钮区 -->
+                        <div class="action-section">
+                            <div class="section-subtitle">
+                                <ElIcon class="subtitle-icon" :size="14"><Brush /></ElIcon>
+                                <span class="subtitle-text">检测操作</span>
+                            </div>
                             
                             <div class="action-buttons">
                                 <ElButton 
@@ -638,14 +685,17 @@ function downloadResult() {
                                     size="large" 
                                     @click="onSubmit" 
                                     :loading="submitLoading"
+                                    :disabled="uploadedFileList.length === 0"
                                     class="submit-btn"
                                 >
-                                    开始检测
+                                    <ElIcon class="btn-icon" :size="18"><Picture /></ElIcon>
+                                    <span>开始检测</span>
                                 </ElButton>
                                 
                                 <ElButton 
-                                    type="warning" 
+                                    type="info" 
                                     plain 
+                                    size="default"
                                     :icon="Delete" 
                                     @click="clearResults" 
                                     v-show="hasResult"
@@ -654,7 +704,7 @@ function downloadResult() {
                                     清除结果
                                 </ElButton>
                             </div>
-                        </ElForm>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -662,38 +712,55 @@ function downloadResult() {
             <!-- 右侧结果面板 -->
             <div class="result-panel">
                 <div class="panel-card result-card">
-                    <div class="card-header">
-                        <span class="card-title">检测结果</span>
+                    <div class="card-header result-header">
+                        <div class="result-title-group">
+                            <span class="card-title">检测结果</span>
+                            <ElTag v-if="hasResult" type="success" effect="dark" size="small" class="result-status-tag">
+                                检测完成
+                            </ElTag>
+                        </div>
                         <div class="result-actions" v-show="hasResult">
                             <ElButton 
-                                text 
+                                :type="showOriginal ? '' : 'primary'"
+                                :plain="showOriginal"
                                 size="small" 
-                                :type="showOriginal ? 'primary' : ''" 
                                 @click="switchOriginal"
+                                class="view-toggle-btn"
                             >
+                                <ElIcon class="btn-icon-left" :size="14"><View /></ElIcon>
                                 {{ showOriginal ? '查看结果' : '查看原图' }}
                             </ElButton>
                             <ElButton 
                                 type="success" 
                                 size="small"
                                 @click="downloadResult"
+                                class="download-btn"
                             >
+                                <ElIcon class="btn-icon-left" :size="14"><Download /></ElIcon>
                                 下载结果
                             </ElButton>
                         </div>
                     </div>
                     <div class="card-body result-body">
+                        <!-- 空状态 -->
                         <div class="result-placeholder" v-show="!hasResult">
                             <div class="placeholder-content">
-                                <ElIcon class="placeholder-icon">
-                                    <UploadFilled />
-                                </ElIcon>
-                                <p>上传图片并点击"开始检测"查看结果</p>
+                                <div class="placeholder-icon-wrapper">
+                                    <ElIcon class="placeholder-icon" :size="64">
+                                        <PictureIcon />
+                                    </ElIcon>
+                                </div>
+                                <p class="placeholder-title">等待检测</p>
+                                <p class="placeholder-desc">上传图片并设置参数后，点击"开始检测"查看结果</p>
                             </div>
                         </div>
-                        <div class="result-canvas-container" v-show="hasResult">
-                            <canvas ref="originalCanvas" class="result-canvas" v-show="showOriginal"></canvas>
-                            <canvas ref="resultCanvas" class="result-canvas" v-show="!showOriginal"></canvas>
+                        
+                        <!-- 结果展示容器 -->
+                        <div class="result-display-wrapper" v-show="hasResult">
+                            <div class="result-canvas-container">
+                                <canvas ref="originalCanvas" class="result-canvas" v-show="showOriginal"></canvas>
+                                <canvas ref="resultCanvas" class="result-canvas" v-show="!showOriginal"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -704,29 +771,40 @@ function downloadResult() {
                         <span class="card-title">保存任务</span>
                     </div>
                     <div class="card-body">
-                        <div class="save-task-row">
-                            <ElInput 
-                                v-model="submitTaskName" 
-                                placeholder="输入任务名称" 
-                                class="task-name-input"
-                            />
-                            <ElPopconfirm 
-                                width="200" 
-                                :title="queryTaskName ? '确定保存该任务吗？这将不会覆盖原有任务' : '确定保存该任务吗？'"
-                                :hide-icon="true" 
-                                @confirm="saveResults"
-                            >
-                                <template #reference>
-                                    <ElButton 
-                                        type="primary" 
-                                        plain 
-                                        :icon="FolderAdd" 
-                                        :loading="saveLoading"
-                                    >
-                                        保存
-                                    </ElButton>
-                                </template>
-                            </ElPopconfirm>
+                        <div class="save-task-section">
+                            <p class="save-hint">将当前检测结果保存到历史记录</p>
+                            <div class="save-task-row">
+                                <ElInput 
+                                    v-model="submitTaskName" 
+                                    placeholder="输入任务名称" 
+                                    class="task-name-input"
+                                    size="large"
+                                    clearable
+                                >
+                                    <template #prefix>
+                                        <ElIcon><DocumentChecked /></ElIcon>
+                                    </template>
+                                </ElInput>
+                                <ElPopconfirm 
+                                    width="260" 
+                                    :title="queryTaskName ? '确定保存该任务吗？这将不会覆盖原有任务' : '确定保存该任务吗？'"
+                                    :hide-icon="true" 
+                                    @confirm="saveResults"
+                                >
+                                    <template #reference>
+                                        <ElButton 
+                                            type="success" 
+                                            size="large"
+                                            :icon="FolderAdd" 
+                                            :loading="saveLoading"
+                                            :disabled="!submitTaskName"
+                                            class="save-btn"
+                                        >
+                                            保存任务
+                                        </ElButton>
+                                    </template>
+                                </ElPopconfirm>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1111,8 +1189,9 @@ function downloadResult() {
 }
 
 .subtitle-icon {
-    font-size: 0.5rem;
     color: #409eff;
+    display: flex;
+    align-items: center;
 }
 
 .subtitle-text {
@@ -1151,8 +1230,9 @@ function downloadResult() {
 
 .param-title-group {
     display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0;
 }
 
 .param-name {
@@ -1164,6 +1244,39 @@ function downloadResult() {
 .param-hint {
     font-size: 0.75rem;
     color: rgba(255, 255, 255, 0.4);
+}
+
+/* 参数信息图标 */
+.param-info-icon {
+    color: rgba(255, 255, 255, 0.35);
+    cursor: help;
+    transition: color 0.2s ease;
+    margin-left: 0.375rem;
+}
+
+.param-info-icon:hover {
+    color: #409eff;
+}
+
+/* 参数提示行 */
+.param-hint-row {
+    margin-bottom: 0.5rem;
+    margin-top: -0.25rem;
+}
+
+.param-hint-row .param-hint {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.35);
+    font-style: italic;
+}
+
+/* 内联参数提示 */
+.param-inline-hint {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.35);
+    font-family: 'Consolas', monospace;
+    margin-bottom: 0.375rem;
+    display: block;
 }
 
 .param-badge {
@@ -1193,30 +1306,52 @@ function downloadResult() {
     width: 100%;
 }
 
+/* ===== 开关区小标题 ===== */
+.switch-section {
+    margin-top: 1rem;
+}
+
+.switch-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.625rem;
+    padding-left: 0.125rem;
+}
+
+.switch-section-icon {
+    color: rgba(255, 255, 255, 0.4);
+    display: flex;
+    align-items: center;
+}
+
+.switch-section-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+}
+
 /* ===== 开关组样式 ===== */
 .switch-group {
     display: flex;
     flex-direction: column;
-    gap: 0.625rem;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 0.5rem;
 }
 
 .switch-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.625rem 0.75rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 0.75rem 0.875rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     transition: all 0.2s ease;
 }
 
 .switch-item:hover {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(64, 158, 255, 0.06);
+    border-color: rgba(64, 158, 255, 0.2);
 }
 
 .switch-info {
@@ -1234,24 +1369,140 @@ function downloadResult() {
 .switch-desc {
     font-size: 0.6875rem;
     color: rgba(255, 255, 255, 0.4);
+    transition: color 0.2s ease;
+}
+
+.switch-item:hover .switch-desc {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* ===== 输出与操作区 ===== */
+.action-card .card-body {
+    padding: 1.25rem;
+}
+
+/* 输出设置区 */
+.output-section {
+    margin-bottom: 0.5rem;
+}
+
+.output-options {
+    margin-top: 0.75rem;
+}
+
+.output-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.output-option {
+    display: flex;
+    flex-direction: column;
+    padding: 0.75rem 0.875rem;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.output-option:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.output-option.active {
+    background: rgba(64, 158, 255, 0.08);
+    border-color: rgba(64, 158, 255, 0.3);
+}
+
+.hidden-radio {
+    margin-right: 0;
+}
+
+.hidden-radio :deep(.el-radio__input) {
+    margin-right: 0.5rem;
+}
+
+.hidden-radio :deep(.el-radio__label) {
+    padding-left: 0;
+}
+
+.radio-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.output-option.active .radio-label {
+    color: #409eff;
+}
+
+.option-desc {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-left: 1.5rem;
+    margin-top: 0.125rem;
+}
+
+.output-option.active .option-desc {
+    color: rgba(64, 158, 255, 0.7);
+}
+
+/* 操作区分隔线 */
+.action-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+    margin: 1rem 0;
+}
+
+/* 操作区 */
+.action-section {
+    margin-top: 0.5rem;
 }
 
 /* ===== 操作按钮 ===== */
 .action-buttons {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    margin-top: 1rem;
+    gap: 0.625rem;
+    margin-top: 0.75rem;
 }
 
 .submit-btn {
     width: 100%;
+    height: 44px;
     font-weight: 600;
+    font-size: 0.9375rem;
     letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border-radius: 8px;
+    transition: all 0.25s ease;
+}
+
+.submit-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.35);
+}
+
+.submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-icon {
+    font-size: 1.125rem;
 }
 
 .clear-btn {
     width: 100%;
+    height: 36px;
+    font-size: 0.875rem;
+    border-radius: 6px;
 }
 
 /* ===== 右侧结果面板 ===== */
@@ -1265,17 +1516,49 @@ function downloadResult() {
     flex: 1;
     display: flex;
     flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .result-card .card-body {
     flex: 1;
     display: flex;
     flex-direction: column;
+    padding: 1.25rem;
+}
+
+/* 结果区头部 */
+.result-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.result-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.result-status-tag {
+    font-weight: 500;
 }
 
 .result-actions {
     display: flex;
-    gap: 0.5rem;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.view-toggle-btn {
+    font-weight: 500;
+}
+
+.download-btn {
+    font-weight: 500;
+}
+
+.btn-icon-left {
+    margin-right: 0.25rem;
 }
 
 /* ===== 结果展示区域 ===== */
@@ -1285,24 +1568,71 @@ function downloadResult() {
     align-items: center;
     justify-content: center;
     min-height: 400px;
-    border: 2px dashed rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.01);
+    border: 2px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    transition: all 0.3s ease;
+}
+
+.result-placeholder:hover {
+    border-color: rgba(64, 158, 255, 0.25);
+    background: rgba(64, 158, 255, 0.03);
 }
 
 .placeholder-content {
     text-align: center;
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.placeholder-icon-wrapper {
+    width: 100px;
+    height: 100px;
+    margin: 0 auto 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.result-placeholder:hover .placeholder-icon-wrapper {
+    background: rgba(64, 158, 255, 0.06);
+    border-color: rgba(64, 158, 255, 0.2);
+    transform: scale(1.02);
 }
 
 .placeholder-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    color: rgba(255, 255, 255, 0.25);
+    transition: color 0.3s ease;
 }
 
-.placeholder-content p {
+.result-placeholder:hover .placeholder-icon {
+    color: rgba(64, 158, 255, 0.5);
+}
+
+.placeholder-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 0.5rem;
+}
+
+.placeholder-desc {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.4);
     margin: 0;
-    font-size: 0.9375rem;
+    max-width: 280px;
+    line-height: 1.5;
+}
+
+/* 结果展示包装器 */
+.result-display-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
 }
 
 .result-canvas-container {
@@ -1311,41 +1641,78 @@ function downloadResult() {
     align-items: center;
     justify-content: center;
     min-height: 400px;
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(20, 20, 30, 0.5));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
     overflow: hidden;
     position: relative;
+    padding: 1.5rem;
 }
 
-/* ===== 关键：图片比例保护 ===== */
+/* ===== 关键：图片比例保护 =====
+ * 以下样式确保图片和 canvas 始终保持原始比例显示
+ * 禁止拉伸、禁止变形、禁止固定高度破坏比例
+ */
 .result-canvas {
+    /* 限制最大宽度为容器宽度，防止溢出 */
     max-width: 100%;
+    /* 限制最大高度为视口高度的70%，防止过高 */
     max-height: 70vh;
+    /* 高度自动，根据宽度等比例缩放 */
     height: auto;
+    /* 使用 contain 确保图片完整显示，保持比例 */
     object-fit: contain;
     display: block;
+    /* 添加轻微阴影增强层次感 */
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
 }
 
+/* 动态创建的 img 元素（Blob 模式）使用相同的比例保护策略 */
 :deep(.result-image) {
     max-width: 100%;
     max-height: 70vh;
     height: auto;
     object-fit: contain;
     display: block;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
 }
 
 /* ===== 保存任务 ===== */
 .save-card .card-body {
-    padding: 0.875rem 1.25rem;
+    padding: 1rem 1.25rem;
+}
+
+.save-task-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+}
+
+.save-hint {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0 0 0.25rem 0;
 }
 
 .save-task-row {
     display: flex;
     gap: 0.75rem;
+    align-items: stretch;
 }
 
 .task-name-input {
     flex: 1;
+}
+
+.task-name-input :deep(.el-input__wrapper) {
+    padding-left: 0.75rem;
+}
+
+.save-btn {
+    min-width: 100px;
+    font-weight: 500;
 }
 
 /* ===== 响应式调整 ===== */
