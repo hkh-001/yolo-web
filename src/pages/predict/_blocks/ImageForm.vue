@@ -12,7 +12,7 @@ import type { Task } from '@/utils/api/task';
 import { Message } from '@/utils/message';
 import { setURLParams } from '@/utils/url';
 
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { preventElemmentSSRError } from '@/utils/ssr';
 
 preventElemmentSSRError()
@@ -36,6 +36,7 @@ const originalBlob = ref<Blob | null>(null);
 const resultData = ref<ImageResponse | null>(null);
 const resultBlob = ref<Blob | null>(null);
 const hasResult = computed(() => resultData.value !== null || resultBlob.value !== null);
+const hasUploaded = computed(() => uploadedFileList.value.length > 0);
 
 const models = ref<ModelInfo[]>([]);
 
@@ -140,17 +141,30 @@ onMounted(() => {
     loadFromTaskQuery()
 })
 
+// 监听上传文件列表变化，自动绘制原图到原始图像框
+watch(uploadedFileList, (newList, oldList) => {
+    // 如果上传了新文件（文件变化），清空上一轮结果
+    if (newList.length > 0 && oldList.length > 0 && newList[0].uid !== oldList[0].uid) {
+        clearResults()
+    }
+    if (newList.length > 0) {
+        drawOriginalToCanvas()
+    }
+}, { deep: true })
+
 function clearResults() {
     resultData.value = null;
     resultBlob.value = null;
     showOriginal.value = false;
     submitTaskName.value = '';
     
+    // 清理 Blob 模式下创建的 img 元素
     const resultImg = document.getElementById('result-image');
     const originalImg = document.getElementById('original-image');
     if (resultImg) resultImg.remove();
     if (originalImg) originalImg.remove();
     
+    // 清理 canvas
     const o_canvas = originalCanvas.value;
     const r_canvas = resultCanvas.value;
     if (o_canvas) {
@@ -167,6 +181,31 @@ function clearResults() {
         r_canvas.width = 0;
         r_canvas.height = 0;
     }
+}
+
+// 绘制原图到原始图像框的 canvas
+async function drawOriginalToCanvas() {
+    if (uploadedFileList.value.length === 0) return;
+    
+    const file = uploadedFileList.value[0].raw;
+    if (!file) return;
+    
+    const canvas = originalCanvas.value;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // 显示 canvas（可能被 Blob 模式隐藏了）
+    canvas.style.display = 'block';
+    
+    const img = new Image();
+    img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+    };
+    img.src = URL.createObjectURL(file);
 }
 
 const handleExceed: UploadProps['onExceed'] = (files) => {
@@ -314,32 +353,41 @@ async function handleImageResultData(uri: string, data: any) {
 }
 
 async function handleImageResultBlob(originalUri: string, resultUri: string) {
-    const container = originalCanvas.value?.parentElement;
-    if (!container) return;
+    // 获取两个容器：优先使用 unified-container，兼容旧类名
+    const resultContainer = document.querySelector('.bottom-result .unified-container') || document.querySelector('.result-container');
+    const originalContainer = document.querySelector('.top-original .unified-container') || document.querySelector('.original-container');
     
+    // 隐藏 canvas，使用 img 元素显示
     const o_canvas = originalCanvas.value;
     const r_canvas = resultCanvas.value;
     if (o_canvas) o_canvas.style.display = 'none';
     if (r_canvas) r_canvas.style.display = 'none';
     
+    // 清理旧的 img 元素
     const oldResultImg = document.getElementById('result-image');
     const oldOriginalImg = document.getElementById('original-image');
     if (oldResultImg) oldResultImg.remove();
     if (oldOriginalImg) oldOriginalImg.remove();
     
-    const resultImg = document.createElement('img');
-    resultImg.id = 'result-image';
-    resultImg.className = 'result-image';
-    resultImg.src = resultUri;
-    resultImg.style.display = showOriginal.value ? 'none' : 'block';
-    container.appendChild(resultImg);
+    // 创建结果图 img 元素，插入到结果容器（下方）
+    if (resultContainer) {
+        const resultImg = document.createElement('img');
+        resultImg.id = 'result-image';
+        resultImg.className = 'result-image';
+        resultImg.src = resultUri;
+        resultImg.style.display = 'block';
+        resultContainer.appendChild(resultImg);
+    }
     
-    const originalImg = document.createElement('img');
-    originalImg.id = 'original-image';
-    originalImg.className = 'result-image';
-    originalImg.src = originalUri;
-    originalImg.style.display = showOriginal.value ? 'block' : 'none';
-    container.appendChild(originalImg);
+    // 创建原图 img 元素，插入到原图容器（上方）
+    if (originalContainer) {
+        const originalImg = document.createElement('img');
+        originalImg.id = 'original-image';
+        originalImg.className = 'result-image';
+        originalImg.src = originalUri;
+        originalImg.style.display = 'block';
+        originalContainer.appendChild(originalImg);
+    }
 }
 
 function switchOriginal() {
@@ -606,32 +654,32 @@ function downloadResult() {
                             </div>
 
                             <!-- 开关选项 -->
-                            <div class="switch-section">
-                                <div class="switch-section-header">
-                                    <ElIcon class="switch-section-icon" :size="13"><SwitchButton /></ElIcon>
+                            <div class="switch-section compact">
+                                <div class="switch-section-header compact-header">
+                                    <ElIcon class="switch-section-icon" :size="12"><SwitchButton /></ElIcon>
                                     <span class="switch-section-title">推理选项</span>
                                 </div>
-                                <div class="switch-group">
-                                    <div class="switch-item">
-                                        <div class="switch-info">
-                                            <span class="switch-name">FP16 半精度推理</span>
-                                            <span class="switch-desc">加速推理，需 GPU 支持</span>
+                                <div class="switch-group compact-switch-group">
+                                    <div class="switch-item compact-switch" :class="{ active: form.half }">
+                                        <div class="switch-info compact-info">
+                                            <span class="switch-name compact-name">FP16</span>
+                                            <span class="switch-desc compact-desc">半精度加速</span>
                                         </div>
-                                        <ElSwitch v-model="form.half" />
+                                        <ElSwitch v-model="form.half" size="small" />
                                     </div>
-                                    <div class="switch-item">
-                                        <div class="switch-info">
-                                            <span class="switch-name">测试时间增强 (TTA)</span>
-                                            <span class="switch-desc">多尺度推理提升精度</span>
+                                    <div class="switch-item compact-switch" :class="{ active: form.augment }">
+                                        <div class="switch-info compact-info">
+                                            <span class="switch-name compact-name">TTA</span>
+                                            <span class="switch-desc compact-desc">测试增强</span>
                                         </div>
-                                        <ElSwitch v-model="form.augment" />
+                                        <ElSwitch v-model="form.augment" size="small" />
                                     </div>
-                                    <div class="switch-item">
-                                        <div class="switch-info">
-                                            <span class="switch-name">类别无关 NMS</span>
-                                            <span class="switch-desc">不同类别间也进行去重</span>
+                                    <div class="switch-item compact-switch" :class="{ active: form.agnostic_nms }">
+                                        <div class="switch-info compact-info">
+                                            <span class="switch-name compact-name">类别无关</span>
+                                            <span class="switch-desc compact-desc">跨类去重</span>
                                         </div>
-                                        <ElSwitch v-model="form.agnostic_nms" />
+                                        <ElSwitch v-model="form.agnostic_nms" size="small" />
                                     </div>
                                 </div>
                             </div>
@@ -646,31 +694,30 @@ function downloadResult() {
                     </div>
                     <div class="card-body">
                         <!-- 输出设置区 -->
-                        <div class="output-section">
-                            <div class="section-subtitle">
-                                <ElIcon class="subtitle-icon" :size="14"><VideoPlay /></ElIcon>
+                        <div class="output-section compact-output">
+                            <div class="section-subtitle compact-subtitle">
+                                <ElIcon class="subtitle-icon" :size="12"><VideoPlay /></ElIcon>
                                 <span class="subtitle-text">结果输出</span>
                             </div>
-                            <div class="output-options">
-                                <ElRadioGroup v-model="accept" class="output-radio-group">
+                            <div class="output-options compact-options">
+                                <ElRadioGroup v-model="accept" class="output-radio-group compact-radio-group">
                                     <div 
                                         v-for="option in acceptOptions" 
                                         :key="option.value" 
-                                        class="output-option"
+                                        class="output-option compact-option"
                                         :class="{ active: accept === option.value }"
                                         @click="accept = option.value"
                                     >
                                         <ElRadio :value="option.value" class="hidden-radio">
-                                            <span class="radio-label">{{ option.name }}</span>
+                                            <span class="radio-label compact-label">{{ option.name }}</span>
                                         </ElRadio>
-                                        <span class="option-desc">{{ option.id === 'blob' ? '直接下载结果文件' : '在页面显示检测框' }}</span>
                                     </div>
                                 </ElRadioGroup>
                             </div>
                         </div>
 
                         <!-- 分隔线 -->
-                        <div class="action-divider"></div>
+                        <div class="action-divider compact-divider"></div>
                         
                         <!-- 操作按钮区 -->
                         <div class="action-section">
@@ -711,25 +758,46 @@ function downloadResult() {
 
             <!-- 右侧结果面板 -->
             <div class="result-panel">
-                <div class="panel-card result-card">
+                <!-- 原始图像框（上方，始终显示） -->
+                <div class="panel-card original-card top-original">
+                    <div class="card-header original-header">
+                        <div class="result-title-group">
+                            <span class="card-title">原始图像</span>
+                        </div>
+                    </div>
+                    <div class="card-body original-body">
+                        <!-- 原始图像空状态 -->
+                        <div class="result-placeholder original-placeholder" v-show="!hasUploaded">
+                            <div class="placeholder-content">
+                                <div class="placeholder-icon-wrapper">
+                                    <ElIcon class="placeholder-icon" :size="48">
+                                        <PictureIcon />
+                                    </ElIcon>
+                                </div>
+                                <p class="placeholder-title">未上传图片</p>
+                                <p class="placeholder-desc">请先上传图片，原始图像将显示在这里</p>
+                            </div>
+                        </div>
+                        
+                        <!-- 原始图像展示区 -->
+                        <div class="result-display-wrapper unified-display" v-show="hasUploaded">
+                            <div class="result-canvas-container unified-container">
+                                <canvas ref="originalCanvas" class="result-canvas unified-canvas"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 识别结果框（下方，始终显示） -->
+                <div class="panel-card result-card bottom-result">
                     <div class="card-header result-header">
                         <div class="result-title-group">
-                            <span class="card-title">检测结果</span>
+                            <span class="card-title">识别结果</span>
                             <ElTag v-if="hasResult" type="success" effect="dark" size="small" class="result-status-tag">
-                                检测完成
+                                识别完成
                             </ElTag>
                         </div>
                         <div class="result-actions" v-show="hasResult">
-                            <ElButton 
-                                :type="showOriginal ? '' : 'primary'"
-                                :plain="showOriginal"
-                                size="small" 
-                                @click="switchOriginal"
-                                class="view-toggle-btn"
-                            >
-                                <ElIcon class="btn-icon-left" :size="14"><View /></ElIcon>
-                                {{ showOriginal ? '查看结果' : '查看原图' }}
-                            </ElButton>
                             <ElButton 
                                 type="success" 
                                 size="small"
@@ -742,24 +810,23 @@ function downloadResult() {
                         </div>
                     </div>
                     <div class="card-body result-body">
-                        <!-- 空状态 -->
-                        <div class="result-placeholder" v-show="!hasResult">
+                        <!-- 识别结果空状态 -->
+                        <div class="result-placeholder result-placeholder-empty" v-show="!hasResult">
                             <div class="placeholder-content">
                                 <div class="placeholder-icon-wrapper">
-                                    <ElIcon class="placeholder-icon" :size="64">
+                                    <ElIcon class="placeholder-icon" :size="48">
                                         <PictureIcon />
                                     </ElIcon>
                                 </div>
-                                <p class="placeholder-title">等待检测</p>
-                                <p class="placeholder-desc">上传图片并设置参数后，点击"开始检测"查看结果</p>
+                                <p class="placeholder-title">等待识别</p>
+                                <p class="placeholder-desc">上传图片并点击"开始检测"后，识别结果将显示在这里</p>
                             </div>
                         </div>
                         
-                        <!-- 结果展示容器 -->
-                        <div class="result-display-wrapper" v-show="hasResult">
-                            <div class="result-canvas-container">
-                                <canvas ref="originalCanvas" class="result-canvas" v-show="showOriginal"></canvas>
-                                <canvas ref="resultCanvas" class="result-canvas" v-show="!showOriginal"></canvas>
+                        <!-- 识别结果展示区 -->
+                        <div class="result-display-wrapper unified-display" v-show="hasResult">
+                            <div class="result-canvas-container unified-container">
+                                <canvas ref="resultCanvas" class="result-canvas unified-canvas"></canvas>
                             </div>
                         </div>
                     </div>
@@ -983,6 +1050,7 @@ function downloadResult() {
 .control-panel {
     display: flex;
     flex-direction: column;
+    min-height: 900px;
 }
 
 /* ===== 模型选择区 ===== */
@@ -1450,6 +1518,85 @@ function downloadResult() {
     color: rgba(64, 158, 255, 0.7);
 }
 
+/* ===== 紧凑布局样式 ===== */
+
+/* 紧凑输出设置区 */
+.compact-output {
+    margin-bottom: 0;
+}
+
+.compact-subtitle {
+    margin-bottom: 0.5rem;
+}
+
+.compact-options {
+    margin-top: 0;
+}
+
+.compact-radio-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+}
+
+.compact-option {
+    flex: 1;
+    padding: 0.625rem 0.75rem;
+    min-height: auto;
+}
+
+.compact-label {
+    font-size: 0.8125rem;
+}
+
+.compact-divider {
+    margin: 0.75rem 0;
+}
+
+/* 紧凑开关区 */
+.switch-section.compact {
+    margin-top: 0.75rem;
+}
+
+.compact-header {
+    margin-bottom: 0.5rem;
+}
+
+.compact-switch-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.compact-switch {
+    flex: 1;
+    min-width: 90px;
+    padding: 0.5rem 0.625rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.375rem;
+}
+
+.compact-switch.active {
+    background: rgba(64, 158, 255, 0.08);
+    border-color: rgba(64, 158, 255, 0.25);
+}
+
+.compact-info {
+    gap: 0;
+}
+
+.compact-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.compact-desc {
+    font-size: 0.625rem;
+    color: rgba(255, 255, 255, 0.35);
+}
+
 /* 操作区分隔线 */
 .action-divider {
     height: 1px;
@@ -1509,14 +1656,18 @@ function downloadResult() {
 .result-panel {
     display: flex;
     flex-direction: column;
-    min-height: 600px;
+    gap: 1rem;
+    min-height: 900px;
+    height: 100%;
 }
 
+/* 检测结果卡片（下方）- 与原始图像框等高 */
 .result-card {
-    flex: 1;
+    flex: 3;
     display: flex;
     flex-direction: column;
     border: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 420px;
 }
 
 .result-card .card-body {
@@ -1524,6 +1675,44 @@ function downloadResult() {
     display: flex;
     flex-direction: column;
     padding: 1.25rem;
+}
+
+/* 原图预览卡片（上方）- 与增强图像框等高 */
+.original-card {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(30, 30, 40, 0.4);
+    min-height: 420px;
+}
+
+.original-card .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+}
+
+.original-header {
+    padding: 0.875rem 1.25rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.original-header .card-title {
+    font-size: 0.9375rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* 上方原始图像框 */
+.top-original {
+    min-height: 420px;
+}
+
+/* 下方增强图像框 */
+.bottom-result {
+    min-height: 420px;
 }
 
 /* 结果区头部 */
@@ -1547,10 +1736,6 @@ function downloadResult() {
     display: flex;
     align-items: center;
     gap: 0.625rem;
-}
-
-.view-toggle-btn {
-    font-weight: 500;
 }
 
 .download-btn {
@@ -1627,20 +1812,71 @@ function downloadResult() {
     line-height: 1.5;
 }
 
+/* 原始图像空状态 - 适应新高度 */
+.original-placeholder {
+    min-height: 360px;
+}
+
+.original-placeholder .placeholder-icon-wrapper {
+    width: 80px;
+    height: 80px;
+}
+
+/* 增强图像空状态 - 适应新高度 */
+.enhance-placeholder {
+    min-height: 360px;
+}
+
 /* 结果展示包装器 */
 .result-display-wrapper {
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 400px;
+    min-height: 360px;
 }
 
-.result-canvas-container {
+/* 统一展示区 - 原图和结果图使用完全一致的布局策略 */
+.unified-display {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 360px;
+}
+
+/* 统一容器 - 原图和结果图使用完全一致的容器样式 */
+.unified-container {
     flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 400px;
+    min-height: 360px;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(20, 20, 30, 0.5));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    padding: 1.5rem;
+}
+
+/* 上方原图区使用稍淡的背景区分 */
+.top-original .unified-container {
+    background: linear-gradient(135deg, rgba(20, 20, 25, 0.5), rgba(30, 30, 40, 0.4));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* 保留旧类名兼容 Blob 模式 */
+.result-main-display,
+.original-display {
+    min-height: 360px;
+}
+
+.result-container,
+.original-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 360px;
     background: linear-gradient(135deg, rgba(0, 0, 0, 0.4), rgba(20, 20, 30, 0.5));
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
@@ -1652,29 +1888,21 @@ function downloadResult() {
 /* ===== 关键：图片比例保护 =====
  * 以下样式确保图片和 canvas 始终保持原始比例显示
  * 禁止拉伸、禁止变形、禁止固定高度破坏比例
+ * 
+ * 统一策略：原图和结果图使用完全一致的尺寸限制
  */
-.result-canvas {
+.result-canvas,
+:deep(.result-image) {
     /* 限制最大宽度为容器宽度，防止溢出 */
     max-width: 100%;
-    /* 限制最大高度为视口高度的70%，防止过高 */
-    max-height: 70vh;
+    /* 限制最大高度为视口高度的65%，保持两张图一致 */
+    max-height: 65vh;
     /* 高度自动，根据宽度等比例缩放 */
     height: auto;
     /* 使用 contain 确保图片完整显示，保持比例 */
     object-fit: contain;
     display: block;
     /* 添加轻微阴影增强层次感 */
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    border-radius: 4px;
-}
-
-/* 动态创建的 img 元素（Blob 模式）使用相同的比例保护策略 */
-:deep(.result-image) {
-    max-width: 100%;
-    max-height: 70vh;
-    height: auto;
-    object-fit: contain;
-    display: block;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     border-radius: 4px;
 }
