@@ -119,53 +119,97 @@
                 <h2 class="section-title">全链路视觉智能能力</h2>
             </div>
             <div class="features-grid">
-                <div 
-                    v-for="feature in features" 
-                    :key="feature.id"
-                    class="feature-card"
-                    :class="`theme-${feature.theme}`"
-                    @click="goTo(feature.path)"
-                >
-                    <!-- 卡片背景层 -->
+                <!-- 图像识别 - 直接硬编码Picture图标 -->
+                <div class="feature-card theme-blue" @click="goTo('/predict/image')">
                     <div class="card-bg-layer"></div>
                     <div class="card-glow-layer"></div>
-                    
-                    <!-- 图标容器 - 多层精致化设计 -->
                     <div class="feature-icon-wrapper">
-                        <div class="icon-layer layer-1"></div>
-                        <div class="icon-layer layer-2"></div>
-                        <div class="icon-layer layer-3"></div>
-                        <div class="icon-glow"></div>
-                        <el-icon :size="26" class="feature-icon">
-                            <component :is="feature.icon" />
-                        </el-icon>
+                        <el-icon :size="28" class="feature-icon"><Picture /></el-icon>
                     </div>
-                    
-                    <!-- 内容区 -->
                     <div class="feature-content">
-                        <h3 class="feature-title">{{ feature.title }}</h3>
-                        <p class="feature-desc">{{ feature.desc }}</p>
+                        <h3 class="feature-title">图像识别</h3>
+                        <p class="feature-desc">基于 YOLO 的实时目标检测，支持多种模型切换</p>
                         <div class="feature-footer">
                             <div class="feature-tags">
-                                <span 
-                                    v-for="tag in feature.tags" 
-                                    :key="tag" 
-                                    class="feature-tag"
-                                >
-                                    {{ tag }}
-                                </span>
+                                <span class="feature-tag">YOLO</span>
+                                <span class="feature-tag">实时检测</span>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- 进入指示 -->
-                    <div class="feature-action">
-                        <div class="action-hint">
-                            <span class="hint-text">{{ feature.cta }}</span>
-                            <el-icon :size="14" class="hint-arrow"><ArrowRight /></el-icon>
+                </div>
+                
+                <!-- 视频识别 - 直接硬编码VideoPlay图标 -->
+                <div class="feature-card theme-cyan" @click="goTo('/predict/video')">
+                    <div class="card-bg-layer"></div>
+                    <div class="card-glow-layer"></div>
+                    <div class="feature-icon-wrapper">
+                        <el-icon :size="28" class="feature-icon"><VideoPlay /></el-icon>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">视频识别</h3>
+                        <p class="feature-desc">逐帧检测视频流，支持帧间隔配置与批量导出</p>
+                        <div class="feature-footer">
+                            <div class="feature-tags">
+                                <span class="feature-tag">视频流</span>
+                                <span class="feature-tag">帧检测</span>
+                            </div>
                         </div>
-                        <div class="action-arrow">
-                            <el-icon :size="18"><ArrowRight /></el-icon>
+                    </div>
+                </div>
+                
+                <!-- 掩码生成 - 直接硬编码FullScreen图标 -->
+                <div class="feature-card theme-purple" @click="goTo('/predict/mask')">
+                    <div class="card-bg-layer"></div>
+                    <div class="card-glow-layer"></div>
+                    <div class="feature-icon-wrapper">
+                        <el-icon :size="28" class="feature-icon"><FullScreen /></el-icon>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">掩码生成</h3>
+                        <p class="feature-desc">实例分割提取目标轮廓，支持像素级掩码操作</p>
+                        <div class="feature-footer">
+                            <div class="feature-tags">
+                                <span class="feature-tag">分割</span>
+                                <span class="feature-tag">像素级</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 图像增强 - 直接硬编码MagicStick图标 -->
+                <div class="feature-card theme-green" @click="goTo('/predict/enhance')">
+                    <div class="card-bg-layer"></div>
+                    <div class="card-glow-layer"></div>
+                    <div class="feature-icon-wrapper">
+                        <el-icon :size="28" class="feature-icon"><MagicStick /></el-icon>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">图像增强</h3>
+                        <p class="feature-desc">Real-ESRGAN 超分辨率，整图/ROI/自动检测增强</p>
+                        <div class="feature-footer">
+                            <div class="feature-tags">
+                                <span class="feature-tag">超分</span>
+                                <span class="feature-tag">Real-ESRGAN</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 智能流程 - 直接硬编码Cpu图标 -->
+                <div class="feature-card theme-gradient" @click="goTo('/predict/workflow')">
+                    <div class="card-bg-layer"></div>
+                    <div class="card-glow-layer"></div>
+                    <div class="feature-icon-wrapper">
+                        <el-icon :size="28" class="feature-icon"><Cpu /></el-icon>
+                    </div>
+                    <div class="feature-content">
+                        <h3 class="feature-title">智能流程</h3>
+                        <p class="feature-desc">检测→掩码→增强全自动化流水线，一站式处理</p>
+                        <div class="feature-footer">
+                            <div class="feature-tags">
+                                <span class="feature-tag">全自动</span>
+                                <span class="feature-tag">Pipeline</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -192,16 +236,10 @@
                     <div class="capability-bg"></div>
                     <div class="capability-glow"></div>
                     
-                    <!-- 顶部：数字与图标 -->
+                    <!-- [DEBUG-CAP] 顶部：连续编号 01-04 -->
                     <div class="capability-header">
                         <div class="capability-number">
                             <span class="number-digit">{{ cap.number }}</span>
-                            <div class="number-glow"></div>
-                        </div>
-                        <div class="capability-icon-wrap">
-                            <el-icon :size="18" class="capability-icon">
-                                <component :is="cap.icon" />
-                            </el-icon>
                         </div>
                     </div>
                     
@@ -344,7 +382,7 @@
 import {
     Picture,
     VideoPlay,
-    CopyDocument,
+    FullScreen,
     MagicStick,
     Cpu,
     Grid,
@@ -352,7 +390,7 @@ import {
     Star,
     ArrowRight,
     Timer,
-    Link,
+    Plus,
     Aim
 } from '@element-plus/icons-vue'
 
@@ -382,7 +420,7 @@ const features = [
         id: 'mask',
         title: '掩码生成',
         desc: '实例分割提取目标轮廓，支持像素级掩码操作',
-        icon: 'CopyDocument',
+        icon: 'FullScreen',
         path: '/predict/mask',
         tags: ['分割', '像素级'],
         theme: 'purple',
@@ -963,19 +1001,22 @@ section {
     margin-bottom: 4rem;
 }
 
+/* 桌面端：5张卡片一行 */
 .features-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.875rem;
 }
 
-/* 功能卡片 - 统一边框透明度为 0.06 */
+/* 功能卡片 - 5列布局适配 */
 .feature-card {
     position: relative;
     display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-    padding: 1.25rem;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    padding: 1.25rem 0.75rem;
     background: rgba(30, 30, 40, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 14px;
@@ -1065,7 +1106,7 @@ section {
         0 4px 16px rgba(103, 194, 58, 0.08);
 }
 
-/* 图标容器 - 统一 48px，更克制 */
+/* 图标容器 - 与功能页头部对齐，突出图标本体 */
 .feature-icon-wrapper {
     position: relative;
     width: 48px;
@@ -1074,200 +1115,122 @@ section {
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-/* 图标层1 - 外发光底座 */
-/* 图标层统一 12px 圆角，收敛发光 */
-.icon-layer {
-    position: absolute;
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.15) 0%, rgba(22, 119, 255, 0.2) 100%);
+    border: 1.5px solid rgba(64, 158, 255, 0.4);
     border-radius: 12px;
+    box-shadow: 
+        inset 0 1px 1px rgba(255, 255, 255, 0.15),
+        0 4px 12px rgba(64, 158, 255, 0.15);
     transition: all 0.3s ease;
 }
 
-.icon-layer.layer-1 {
-    inset: 0;
-    background: linear-gradient(135deg, rgba(64, 158, 255, 0.15) 0%, rgba(22, 119, 255, 0.1) 100%);
-    border: 1px solid rgba(64, 158, 255, 0.25);
-    box-shadow: 
-        0 2px 6px rgba(0, 0, 0, 0.15),
-        0 2px 8px rgba(64, 158, 255, 0.1);
-}
-
-.icon-layer.layer-2 {
-    inset: 2px;
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.06) 0%, rgba(64, 158, 255, 0.03) 50%, transparent 100%);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 10px;
-}
-
-.icon-layer.layer-3 {
-    inset: 5px;
-    background: linear-gradient(145deg, rgba(30, 40, 60, 0.5) 0%, rgba(20, 30, 50, 0.7) 100%);
-    border: 1px solid rgba(64, 158, 255, 0.12);
-    border-radius: 7px;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
-}
-
-/* 图标辉光 */
-.icon-glow {
-    position: absolute;
-    inset: -2px;
-    background: radial-gradient(circle at center, rgba(64, 158, 255, 0.4) 0%, transparent 70%);
-    opacity: 0;
-    transition: opacity 0.35s ease;
-    pointer-events: none;
-}
-
-/* 图标本身 */
+/* 图标本身 - 清晰醒目 */
 .feature-icon {
-    position: relative;
-    z-index: 2;
-    color: rgba(255, 255, 255, 0.9);
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
-    transition: all 0.35s ease;
+    color: rgba(100, 180, 255, 1);
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+    transition: all 0.3s ease;
 }
 
-/* Hover 时图标容器效果 */
-.feature-card:hover .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(64, 158, 255, 0.35) 0%, rgba(22, 119, 255, 0.25) 100%);
-    border-color: rgba(64, 158, 255, 0.5);
+/* 主题差异化 - 蓝色系 */
+.feature-card.theme-blue .feature-icon-wrapper {
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.15) 0%, rgba(22, 119, 255, 0.2) 100%);
+    border-color: rgba(64, 158, 255, 0.4);
+}
+.feature-card.theme-blue .feature-icon {
+    color: rgba(64, 158, 255, 1);
+}
+
+/* 主题差异化 - 青色系 */
+.feature-card.theme-cyan .feature-icon-wrapper {
+    background: linear-gradient(135deg, rgba(0, 200, 200, 0.15) 0%, rgba(0, 150, 180, 0.2) 100%);
+    border-color: rgba(0, 200, 200, 0.4);
+}
+.feature-card.theme-cyan .feature-icon {
+    color: rgba(0, 200, 200, 1);
+}
+
+/* 主题差异化 - 紫色系 */
+.feature-card.theme-purple .feature-icon-wrapper {
+    background: linear-gradient(135deg, rgba(150, 100, 255, 0.15) 0%, rgba(120, 80, 220, 0.2) 100%);
+    border-color: rgba(150, 100, 255, 0.4);
+}
+.feature-card.theme-purple .feature-icon {
+    color: rgba(150, 100, 255, 1);
+}
+
+/* 主题差异化 - 绿色系 */
+.feature-card.theme-green .feature-icon-wrapper {
+    background: linear-gradient(135deg, rgba(103, 194, 58, 0.15) 0%, rgba(80, 160, 40, 0.2) 100%);
+    border-color: rgba(103, 194, 58, 0.4);
+}
+.feature-card.theme-green .feature-icon {
+    color: rgba(103, 194, 58, 1);
+}
+
+/* 主题差异化 - 渐变系 */
+.feature-card.theme-gradient .feature-icon-wrapper {
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.12) 0%, rgba(103, 194, 58, 0.2) 100%);
+    border-color: rgba(103, 194, 58, 0.45);
+}
+.feature-card.theme-gradient .feature-icon {
+    color: rgba(103, 194, 58, 1);
+}
+
+/* Hover 效果 */
+.feature-card:hover .feature-icon-wrapper {
+    transform: scale(1.05) translateY(-2px);
     box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 6px 20px rgba(64, 158, 255, 0.35),
-        inset 0 1px 1px rgba(255, 255, 255, 0.25);
+        inset 0 1px 1px rgba(255, 255, 255, 0.2),
+        0 6px 16px rgba(0, 0, 0, 0.2);
 }
-
-.feature-card:hover .icon-layer.layer-2 {
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.15) 0%, rgba(64, 158, 255, 0.1) 50%, transparent 100%);
-}
-
-.feature-card:hover .icon-glow {
-    opacity: 1;
-}
-
 .feature-card:hover .feature-icon {
-    transform: scale(1.05);
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3)) drop-shadow(0 0 8px rgba(64, 158, 255, 0.4));
+    transform: scale(1.1);
 }
 
-/* 主题差异化 - 图标容器 */
-.feature-card.theme-cyan .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(0, 200, 200, 0.2) 0%, rgba(0, 150, 180, 0.15) 100%);
-    border-color: rgba(0, 200, 200, 0.3);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 4px 16px rgba(0, 200, 200, 0.15),
-        inset 0 1px 1px rgba(255, 255, 255, 0.15);
-}
-.feature-card.theme-cyan:hover .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(0, 200, 200, 0.35) 0%, rgba(0, 150, 180, 0.25) 100%);
-    border-color: rgba(0, 200, 200, 0.5);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 6px 20px rgba(0, 200, 200, 0.3),
-        inset 0 1px 1px rgba(255, 255, 255, 0.25);
-}
-.feature-card.theme-cyan .icon-glow {
-    background: radial-gradient(circle at center, rgba(0, 200, 200, 0.4) 0%, transparent 70%);
-}
-
-.feature-card.theme-purple .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(150, 100, 255, 0.2) 0%, rgba(120, 80, 220, 0.15) 100%);
-    border-color: rgba(150, 100, 255, 0.3);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 4px 16px rgba(150, 100, 255, 0.15),
-        inset 0 1px 1px rgba(255, 255, 255, 0.15);
-}
-.feature-card.theme-purple:hover .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(150, 100, 255, 0.35) 0%, rgba(120, 80, 220, 0.25) 100%);
-    border-color: rgba(150, 100, 255, 0.5);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 6px 20px rgba(150, 100, 255, 0.3),
-        inset 0 1px 1px rgba(255, 255, 255, 0.25);
-}
-.feature-card.theme-purple .icon-glow {
-    background: radial-gradient(circle at center, rgba(150, 100, 255, 0.4) 0%, transparent 70%);
-}
-
-.feature-card.theme-green .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(103, 194, 58, 0.2) 0%, rgba(80, 160, 40, 0.15) 100%);
-    border-color: rgba(103, 194, 58, 0.3);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 4px 16px rgba(103, 194, 58, 0.15),
-        inset 0 1px 1px rgba(255, 255, 255, 0.15);
-}
-.feature-card.theme-green:hover .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(103, 194, 58, 0.35) 0%, rgba(80, 160, 40, 0.25) 100%);
-    border-color: rgba(103, 194, 58, 0.5);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 6px 20px rgba(103, 194, 58, 0.3),
-        inset 0 1px 1px rgba(255, 255, 255, 0.25);
-}
-.feature-card.theme-green .icon-glow {
-    background: radial-gradient(circle at center, rgba(103, 194, 58, 0.4) 0%, transparent 70%);
-}
-
-.feature-card.theme-gradient .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(64, 158, 255, 0.25) 0%, rgba(103, 194, 58, 0.2) 100%);
-    border-color: rgba(64, 158, 255, 0.35);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 4px 20px rgba(64, 158, 255, 0.2),
-        0 4px 20px rgba(103, 194, 58, 0.1),
-        inset 0 1px 1px rgba(255, 255, 255, 0.15);
-}
-.feature-card.theme-gradient:hover .icon-layer.layer-1 {
-    background: linear-gradient(135deg, rgba(64, 158, 255, 0.4) 0%, rgba(103, 194, 58, 0.3) 100%);
-    border-color: rgba(103, 194, 58, 0.5);
-    box-shadow: 
-        0 2px 8px rgba(0, 0, 0, 0.2),
-        0 6px 24px rgba(64, 158, 255, 0.3),
-        0 6px 24px rgba(103, 194, 58, 0.2),
-        inset 0 1px 1px rgba(255, 255, 255, 0.25);
-}
-.feature-card.theme-gradient .icon-glow {
-    background: radial-gradient(circle at center, rgba(103, 194, 58, 0.4) 0%, transparent 70%);
-}
-
-/* 内容区 */
+/* 内容区 - 5列布局居中对齐 */
 .feature-content {
-    flex: 1;
-    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
     position: relative;
     z-index: 1;
 }
 
 .feature-title {
-    font-size: 1.1rem;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.95);
-    margin: 0 0 0.375rem;
+    margin: 0 0 0.25rem;
     letter-spacing: -0.01em;
+    white-space: nowrap;
 }
 
 .feature-desc {
-    font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.5);
-    margin: 0 0 0.75rem;
-    line-height: 1.5;
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0 0 0.625rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    max-height: 2.8em;
 }
 
-/* 卡片底部 - 标签和CTA */
+/* 卡片底部 - 标签居中 */
 .feature-footer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
+    justify-content: center;
+    width: 100%;
 }
 
 .feature-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.375rem;
+    justify-content: center;
+    gap: 0.25rem;
 }
 
 .feature-tag {
@@ -1326,94 +1289,61 @@ section {
     border-color: rgba(103, 194, 58, 0.25);
 }
 
-/* 进入指示区 */
-.feature-action {
-    position: absolute;
-    right: 1.25rem;
-    bottom: 1.25rem;
-    z-index: 2;
-    display: flex;
+/* 标签样式 - 5列布局适配 */
+.feature-tag {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-}
-
-.action-hint {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.35);
-    opacity: 0;
-    transform: translateX(-8px);
-    transition: all 0.3s ease;
-}
-
-.hint-text {
+    padding: 0.125rem 0.375rem;
+    font-size: 0.625rem;
     font-weight: 500;
+    color: rgba(255, 255, 255, 0.55);
+    background: rgba(64, 158, 255, 0.08);
+    border: 1px solid rgba(64, 158, 255, 0.12);
+    border-radius: 4px;
+    white-space: nowrap;
 }
 
-.hint-arrow {
-    transition: transform 0.3s ease;
+.feature-card:hover .feature-tag {
+    background: rgba(64, 158, 255, 0.12);
+    border-color: rgba(64, 158, 255, 0.2);
+    color: rgba(255, 255, 255, 0.7);
 }
 
-.action-arrow {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 8px;
-    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+/* 主题标签色 */
+.feature-card.theme-cyan .feature-tag {
+    background: rgba(0, 200, 200, 0.08);
+    border-color: rgba(0, 200, 200, 0.12);
+}
+.feature-card.theme-cyan:hover .feature-tag {
+    background: rgba(0, 200, 200, 0.12);
+    border-color: rgba(0, 200, 200, 0.2);
 }
 
-/* Hover 时进入指示效果 */
-.feature-card:hover .action-hint {
-    opacity: 1;
-    transform: translateX(0);
-    color: rgba(64, 158, 255, 0.8);
+.feature-card.theme-purple .feature-tag {
+    background: rgba(150, 100, 255, 0.08);
+    border-color: rgba(150, 100, 255, 0.12);
+}
+.feature-card.theme-purple:hover .feature-tag {
+    background: rgba(150, 100, 255, 0.12);
+    border-color: rgba(150, 100, 255, 0.2);
 }
 
-.feature-card:hover .action-arrow {
-    color: #409eff;
-    background: rgba(64, 158, 255, 0.1);
-    border-color: rgba(64, 158, 255, 0.25);
-    transform: translateX(2px);
+.feature-card.theme-green .feature-tag {
+    background: rgba(103, 194, 58, 0.08);
+    border-color: rgba(103, 194, 58, 0.12);
 }
-
-.feature-card:hover .hint-arrow {
-    transform: translateX(2px);
-}
-
-/* 主题色进入指示 */
-.feature-card.theme-cyan:hover .action-hint { color: rgba(0, 200, 200, 0.8); }
-.feature-card.theme-cyan:hover .action-arrow { 
-    color: #00c8c8; 
-    background: rgba(0, 200, 200, 0.1);
-    border-color: rgba(0, 200, 200, 0.25);
-}
-
-.feature-card.theme-purple:hover .action-hint { color: rgba(150, 100, 255, 0.8); }
-.feature-card.theme-purple:hover .action-arrow { 
-    color: #9678ff; 
-    background: rgba(150, 100, 255, 0.1);
-    border-color: rgba(150, 100, 255, 0.25);
-}
-
-.feature-card.theme-green:hover .action-hint { color: rgba(103, 194, 58, 0.8); }
-.feature-card.theme-green:hover .action-arrow { 
-    color: #67c23a; 
-    background: rgba(103, 194, 58, 0.1);
-    border-color: rgba(103, 194, 58, 0.25);
-}
-
-.feature-card.theme-gradient:hover .action-hint { color: rgba(103, 194, 58, 0.9); }
-.feature-card.theme-gradient:hover .action-arrow { 
-    color: #67c23a; 
+.feature-card.theme-green:hover .feature-tag {
     background: rgba(103, 194, 58, 0.12);
-    border-color: rgba(103, 194, 58, 0.3);
+    border-color: rgba(103, 194, 58, 0.2);
+}
+
+.feature-card.theme-gradient .feature-tag {
+    background: rgba(103, 194, 58, 0.08);
+    border-color: rgba(103, 194, 58, 0.12);
+}
+.feature-card.theme-gradient:hover .feature-tag {
+    background: rgba(103, 194, 58, 0.12);
+    border-color: rgba(103, 194, 58, 0.2);
 }
 
 /* ========== 平台能力概览区 - 轻度呈现 ========== */
@@ -1501,12 +1431,9 @@ section {
     background: radial-gradient(ellipse at 50% 0%, rgba(103, 194, 58, 0.06) 0%, transparent 50%);
 }
 
-/* 顶部区域：数字 + 图标 */
+/* 顶部区域：连续编号 01-04 */
 .capability-header {
     position: relative;
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
     margin-bottom: 0.875rem;
     z-index: 1;
 }
@@ -1517,144 +1444,39 @@ section {
     display: inline-block;
 }
 
+/* [CAP-02] 强制收敛修复：数字改为纯色显示，删除渐变裁切文字方案 */
 .number-digit {
+    position: relative;
+    z-index: 2;
+    display: inline-block;
     font-size: 2.25rem;
     font-weight: 800;
     line-height: 1;
-    background: linear-gradient(135deg, 
-        rgba(100, 180, 255, 0.9) 0%, 
-        rgba(64, 158, 255, 0.7) 50%,
-        rgba(103, 194, 58, 0.6) 100%
-    );
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    filter: drop-shadow(0 2px 4px rgba(64, 158, 255, 0.15));
+    /* 删除：background-clip: text 渐变文字方案 */
+    /* 改用：稳定的纯色文字 */
+    color: rgba(100, 180, 255, 0.95);
+    text-shadow: 0 2px 8px rgba(64, 158, 255, 0.2);
+    font-variant-numeric: tabular-nums;
     transition: all 0.3s ease;
-}
-
-/* 数字辉光效果 */
-.number-glow {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 60px;
-    height: 40px;
-    background: radial-gradient(ellipse at center, rgba(64, 158, 255, 0.2) 0%, transparent 70%);
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
 }
 
 .capability-card:hover .number-digit {
-    filter: drop-shadow(0 2px 6px rgba(64, 158, 255, 0.25));
+    text-shadow: 0 2px 12px rgba(64, 158, 255, 0.35);
 }
 
-.capability-card:hover .number-glow {
-    opacity: 1;
-}
-
-/* 主题色数字差异化 */
+/* 主题色数字差异化 - 改用纯色而非渐变 */
 .capability-card.accent-cyan .number-digit {
-    background: linear-gradient(135deg, rgba(0, 220, 220, 0.9) 0%, rgba(0, 180, 200, 0.7) 100%);
-    filter: drop-shadow(0 2px 4px rgba(0, 200, 200, 0.15));
+    color: rgba(0, 220, 220, 0.95);
+    text-shadow: 0 2px 8px rgba(0, 200, 200, 0.2);
 }
-.capability-card.accent-cyan .number-glow {
-    background: radial-gradient(ellipse at center, rgba(0, 200, 200, 0.2) 0%, transparent 70%);
-}
-
 .capability-card.accent-purple .number-digit {
-    background: linear-gradient(135deg, rgba(170, 120, 255, 0.9) 0%, rgba(130, 90, 220, 0.7) 100%);
-    filter: drop-shadow(0 2px 4px rgba(150, 100, 255, 0.15));
+    color: rgba(180, 140, 255, 0.95);
+    text-shadow: 0 2px 8px rgba(150, 100, 255, 0.2);
 }
-.capability-card.accent-purple .number-glow {
-    background: radial-gradient(ellipse at center, rgba(150, 100, 255, 0.2) 0%, transparent 70%);
-}
-
 .capability-card.accent-green .number-digit {
-    background: linear-gradient(135deg, rgba(123, 214, 78, 0.9) 0%, rgba(83, 174, 48, 0.7) 100%);
-    filter: drop-shadow(0 2px 4px rgba(103, 194, 58, 0.15));
+    color: rgba(133, 224, 88, 0.95);
+    text-shadow: 0 2px 8px rgba(103, 194, 58, 0.2);
 }
-.capability-card.accent-green .number-glow {
-    background: radial-gradient(ellipse at center, rgba(103, 194, 58, 0.2) 0%, transparent 70%);
-}
-
-/* 图标容器 - 克制简洁 */
-.capability-icon-wrap {
-    position: relative;
-    width: 34px;
-    height: 34px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(64, 158, 255, 0.08);
-    border: 1px solid rgba(64, 158, 255, 0.15);
-    border-radius: 9px;
-    transition: all 0.3s ease;
-}
-
-.capability-icon {
-    color: rgba(64, 158, 255, 0.7);
-    transition: all 0.3s ease;
-}
-
-.capability-card:hover .capability-icon-wrap {
-    background: rgba(64, 158, 255, 0.12);
-    border-color: rgba(64, 158, 255, 0.25);
-    transform: translateY(-1px);
-}
-
-.capability-card:hover .capability-icon {
-    color: rgba(64, 158, 255, 0.9);
-}
-
-/* 图标主题色差异化 */
-.capability-card.accent-cyan .capability-icon-wrap {
-    background: rgba(0, 200, 200, 0.08);
-    border-color: rgba(0, 200, 200, 0.15);
-}
-.capability-card.accent-cyan .capability-icon {
-    color: rgba(0, 200, 200, 0.7);
-}
-.capability-card.accent-cyan:hover .capability-icon-wrap {
-    background: rgba(0, 200, 200, 0.12);
-    border-color: rgba(0, 200, 200, 0.25);
-}
-.capability-card.accent-cyan:hover .capability-icon {
-    color: rgba(0, 200, 200, 0.9);
-}
-
-.capability-card.accent-purple .capability-icon-wrap {
-    background: rgba(150, 100, 255, 0.08);
-    border-color: rgba(150, 100, 255, 0.15);
-}
-.capability-card.accent-purple .capability-icon {
-    color: rgba(150, 100, 255, 0.7);
-}
-.capability-card.accent-purple:hover .capability-icon-wrap {
-    background: rgba(150, 100, 255, 0.12);
-    border-color: rgba(150, 100, 255, 0.25);
-}
-.capability-card.accent-purple:hover .capability-icon {
-    color: rgba(150, 100, 255, 0.9);
-}
-
-.capability-card.accent-green .capability-icon-wrap {
-    background: rgba(103, 194, 58, 0.08);
-    border-color: rgba(103, 194, 58, 0.15);
-}
-.capability-card.accent-green .capability-icon {
-    color: rgba(103, 194, 58, 0.7);
-}
-.capability-card.accent-green:hover .capability-icon-wrap {
-    background: rgba(103, 194, 58, 0.12);
-    border-color: rgba(103, 194, 58, 0.25);
-}
-.capability-card.accent-green:hover .capability-icon {
-    color: rgba(103, 194, 58, 0.9);
-}
-
 /* 能力标签 - 醒目但克制 */
 .capability-label {
     position: relative;
@@ -2355,6 +2177,23 @@ section {
     .capabilities-grid {
         grid-template-columns: repeat(2, 1fr);
     }
+    
+    /* 中等屏幕：3列布局 */
+    .features-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .feature-card {
+        padding: 1rem 0.625rem;
+    }
+    
+    .feature-title {
+        font-size: 0.875rem;
+    }
+    
+    .feature-desc {
+        font-size: 0.625rem;
+    }
 }
 
 @media (max-width: 768px) {
@@ -2416,8 +2255,14 @@ section {
         height: 28px;
     }
     
+    /* 小屏幕：2列布局 */
     .features-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+    
+    .feature-card {
+        padding: 1rem 0.5rem;
     }
     
     .capabilities-grid {
@@ -2436,6 +2281,37 @@ section {
     
     .quick-grid {
         grid-template-columns: 1fr;
+    }
+}
+
+/* 极小屏幕：单列布局 */
+@media (max-width: 480px) {
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .feature-card {
+        flex-direction: row;
+        align-items: center;
+        text-align: left;
+        padding: 1rem;
+    }
+    
+    .feature-content {
+        align-items: flex-start;
+    }
+    
+    .feature-title {
+        font-size: 1rem;
+    }
+    
+    .feature-desc {
+        font-size: 0.75rem;
+        -webkit-line-clamp: 1;
+    }
+    
+    .feature-tags {
+        justify-content: flex-start;
     }
 }
 </style>

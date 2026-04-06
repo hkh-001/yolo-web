@@ -15,16 +15,144 @@ export interface Props extends HTMLAttributes<"div"> {
 const { brand, nav, active, ...rest } = Astro.props as Props;
 ---
 
-<div class="relative !h-min">
-    <div class="absolute bottom-0 w-full h-[1px] bg-(--border-color)"></div>
-    <div class:list={"relative flex justify-end items-center box-border pl-6 pr-24"} {...rest}>
-        <div class="flex-1 text-[1.2em] font-bold">{brand}</div>
-        {
-            nav.map(({ href, text }) => (
-                <Link align="bottom" class="!py-4" href={href} active={active === href} target="_self">
-                    {text}
-                </Link>
-            ))
-        }
+<div class="relative !h-min tech-header-inner">
+    <!-- 底部蓝青渐变分隔线（替代原来的红线） -->
+    <div class="absolute bottom-0 w-full h-[1px] header-glow-line"></div>
+    
+    <div class:list={"relative flex justify-end items-center box-border px-6 py-3 min-h-[64px]"} {...rest}>
+        <!-- 左侧品牌区：图标 + 主标题 + 副标题 -->
+        <div class="flex-1 flex items-center gap-3">
+            <!-- 品牌图标容器 -->
+            <div class="brand-icon-wrap">
+                <div class="brand-icon-glow"></div>
+                <svg class="brand-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="2" y="2" width="20" height="20" rx="4" stroke="currentColor" stroke-width="2"/>
+                    <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 2V6M12 18V22M2 12H6M18 12H22" stroke="currentColor" stroke-width="2"/>
+                </svg>
+            </div>
+            
+            <!-- 品牌文字区 -->
+            <div class="brand-text">
+                <div class="brand-title">{brand}</div>
+                <div class="brand-subtitle">AI Vision Console</div>
+            </div>
+        </div>
+        
+        <!-- 右侧导航区 -->
+        <nav class="flex items-center gap-1">
+            {
+                nav.map(({ href, text }) => (
+                    <Link 
+                        align="bottom" 
+                        class="nav-link" 
+                        href={href} 
+                        active={active === href} 
+                        target="_self"
+                    >
+                        {text}
+                    </Link>
+                ))
+            }
+        </nav>
     </div>
 </div>
+
+<style>
+    /* 顶部导航栏内部容器 */
+    .tech-header-inner {
+        position: relative;
+    }
+    
+    /* 蓝青渐变底部线 - 替代原来的红线 */
+    .header-glow-line {
+        background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(64, 158, 255, 0.4) 15%, 
+            rgba(0, 200, 200, 0.3) 50%, 
+            rgba(64, 158, 255, 0.4) 85%, 
+            transparent 100%
+        );
+        box-shadow: 0 1px 6px rgba(64, 158, 255, 0.15);
+    }
+    
+    /* 品牌图标容器 */
+    .brand-icon-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, 
+            rgba(64, 158, 255, 0.15) 0%, 
+            rgba(0, 200, 200, 0.1) 100%
+        );
+        border: 1px solid rgba(64, 158, 255, 0.2);
+        box-shadow: 
+            0 2px 8px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    
+    /* 品牌图标发光效果 */
+    .brand-icon-glow {
+        position: absolute;
+        inset: 0;
+        border-radius: 8px;
+        background: radial-gradient(circle at center, 
+            rgba(64, 158, 255, 0.2) 0%, 
+            transparent 70%
+        );
+        opacity: 0.6;
+        transition: opacity 0.3s ease;
+    }
+    
+    .brand-icon-wrap:hover .brand-icon-glow {
+        opacity: 1;
+    }
+    
+    /* 品牌图标 */
+    .brand-icon {
+        position: relative;
+        width: 20px;
+        height: 20px;
+        color: rgba(100, 180, 255, 0.9);
+        filter: drop-shadow(0 0 4px rgba(64, 158, 255, 0.3));
+    }
+    
+    /* 品牌文字区 */
+    .brand-text {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    
+    /* 品牌主标题 */
+    .brand-title {
+        font-size: 1.15em;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+        color: rgba(255, 255, 255, 0.95);
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* 品牌副标题 */
+    .brand-subtitle {
+        font-size: 0.7em;
+        font-weight: 400;
+        margin-top: 2px;
+        color: rgba(150, 170, 200, 0.6);
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+    }
+    
+    /* 导航链接样式 */
+    .nav-link {
+        position: relative;
+        padding: 0.5rem 1rem;
+        margin: 0 2px;
+        border-radius: 0.5rem;
+        transition: all 0.25s ease;
+    }
+</style>

@@ -1,5 +1,5 @@
 ---
-import type { HTMLAttributes } from "astro/types";
+import type { HTMLAttributes } from "astro";
 
 export interface Props extends HTMLAttributes<"a"> {
     align: "bottom" | "left";
@@ -13,14 +13,112 @@ const { align: type, active, href, nowrap, ...rest } = Astro.props as Props;
 
 <a
     class:list={[
-        "px-4 py-2 block box-content",
+        "nav-item",
         nowrap && "text-nowrap whitespace-nowrap",
-        "text-(--text-color) hover:text-(--brand-color)",
-        "border-solid border-transparent transition-colors cursor-pointer",
-        type === "bottom" ? "border-b-3" : "border-l-3",
-        active ? "!border-(--brand-color)" : "",
+        type === "bottom" ? "nav-bottom" : "nav-left",
+        active && "nav-active",
         Astro.props.class
     ]}
     href={href}
-    {...rest}><slot /></a
->
+    {...rest}>
+    <span class="nav-text"><slot /></span>
+    {active && <span class="nav-active-glow"></span>}
+</a>
+
+<style>
+    /* 导航项基础样式 */
+    .nav-item {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.25s ease;
+        color: rgba(180, 190, 210, 0.85);
+        text-decoration: none;
+        overflow: hidden;
+    }
+    
+    /* 导航文字 */
+    .nav-text {
+        position: relative;
+        z-index: 10;
+        transition: color 0.25s ease;
+    }
+    
+    /* Hover 状态 - 轻微提亮和背景 */
+    .nav-item:hover {
+        color: rgba(255, 255, 255, 0.95);
+        background: rgba(64, 158, 255, 0.08);
+        transform: translateY(-1px);
+    }
+    
+    /* Active 状态 - 胶囊按钮效果 */
+    .nav-item.nav-active {
+        color: rgba(255, 255, 255, 0.98);
+        background: linear-gradient(135deg, 
+            rgba(64, 158, 255, 0.15) 0%, 
+            rgba(0, 200, 200, 0.1) 100%
+        );
+        border: 1px solid rgba(64, 158, 255, 0.25);
+        box-shadow: 
+            0 2px 8px rgba(0, 0, 0, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            0 0 12px rgba(64, 158, 255, 0.15);
+    }
+    
+    /* Active 状态底部高光 */
+    .nav-item.nav-active::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 20%;
+        right: 20%;
+        height: 2px;
+        background: linear-gradient(90deg, 
+            transparent 0%, 
+            rgba(64, 158, 255, 0.8) 50%, 
+            transparent 100%
+        );
+        border-radius: 2px;
+        box-shadow: 0 -1px 6px rgba(64, 158, 255, 0.4);
+    }
+    
+    /* Active 发光层 */
+    .nav-active-glow {
+        position: absolute;
+        inset: -1px;
+        background: radial-gradient(ellipse at center bottom, 
+            rgba(64, 158, 255, 0.15) 0%, 
+            transparent 70%
+        );
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    /* 左侧对齐模式（用于侧边栏） */
+    .nav-left {
+        justify-content: flex-start;
+        border-left: 2px solid transparent;
+    }
+    
+    .nav-left.nav-active {
+        border-left-color: rgba(64, 158, 255, 0.6);
+    }
+    
+    /* 点击效果 */
+    .nav-item:active {
+        transform: translateY(0);
+        transition-duration: 0.1s;
+    }
+    
+    /* 不换行 */
+    .text-nowrap {
+        text-wrap: nowrap;
+        white-space: nowrap;
+    }
+</style>
