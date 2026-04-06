@@ -1,243 +1,442 @@
 <template>
-    <div class="workflow-form">
-        <!-- 顶部控制区域 -->
-        <el-card class="upload-section" shadow="hover" :body-style="{ padding: '16px' }">
-            <div class="control-bar">
-                <div class="upload-area" @click="debugUploadAreaClick">
-                    <input
-                        ref="fileInputRef"
-                        type="file"
-                        accept="image/*"
-                        class="native-file-input"
-                        @change="onFileSelected"
-                        @click="debugInputClick"
-                    />
-                    
-                    <!-- 紧凑上传区域 -->
-                    <div 
-                        class="upload-drop-zone"
-                        :class="{ 'has-file': originalImage, 'disabled': isRunning }"
-                        @click="triggerFileSelect"
-                        @dragover.prevent="onDragOver"
-                        @dragleave.prevent="onDragLeave"
-                        @drop.prevent="onFileDrop"
-                    >
-                        <el-icon class="upload-icon" :size="24">
-                            <upload-filled />
-                        </el-icon>
-                        <div class="upload-text">
-                            <span v-if="!originalImage">
-                                拖拽图片到此处或 <em>点击上传</em>
-                            </span>
-                            <span v-else>
-                                已选择: {{ currentFile?.name }}
-                                <small class="replace-hint">（点击更换）</small>
-                            </span>
+    <div class="workflow-container">
+        <!-- 页面头部 -->
+        <div class="page-header">
+            <div class="header-main">
+                <div class="header-icon workflow-icon">
+                    <div class="icon-layer layer-1"></div>
+                    <div class="icon-layer layer-2"></div>
+                    <div class="icon-layer layer-3"></div>
+                    <div class="icon-nodes">
+                        <span class="node node-1"></span>
+                        <span class="node node-2"></span>
+                        <span class="node node-3"></span>
+                    </div>
+                    <el-icon :size="22" class="main-icon"><Cpu /></el-icon>
+                </div>
+                <div class="header-content">
+                    <h1 class="page-title">智能流程</h1>
+                    <p class="page-subtitle">图像识别 → 掩码生成 → 图像增强 一站式处理</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 顶部流程控制区 -->
+        <div class="panel-card control-card">
+            <div class="card-header centered-header">
+                <div class="card-title-group centered-title">
+                    <el-icon class="subtitle-icon" :size="16"><UploadFilled /></el-icon>
+                    <span class="card-title">流程控制</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- 流程输入区 -->
+                <div class="workflow-input-section">
+                    <div class="section-subtitle tag-style-subtitle">
+                        <div class="subtitle-badge">
+                            <el-icon class="subtitle-icon" :size="14"><UploadFilled /></el-icon>
+                            <span class="subtitle-text">流程输入</span>
                         </div>
-                        <div class="upload-tip">支持 JPG、PNG、WEBP</div>
+                    </div>
+                    <div class="upload-wrapper" @click="debugUploadAreaClick">
+                        <input
+                            ref="fileInputRef"
+                            type="file"
+                            accept="image/*"
+                            class="native-file-input"
+                            @change="onFileSelected"
+                            @click="debugInputClick"
+                        />
+                        <div 
+                            class="upload-drop-zone workflow-upload-zone"
+                            :class="{ 'has-file': originalImage, 'disabled': isRunning, 'has-preview': originalImage }"
+                            @click="triggerFileSelect"
+                            @dragover.prevent="onDragOver"
+                            @dragleave.prevent="onDragLeave"
+                            @drop.prevent="onFileDrop"
+                        >
+                            <!-- 未上传状态 -->
+                            <div v-if="!originalImage" class="upload-content upload-empty-state">
+                                <div class="upload-icon-ring">
+                                    <div class="upload-icon-bg">
+                                        <el-icon class="upload-main-icon" :size="28">
+                                            <upload-filled />
+                                        </el-icon>
+                                    </div>
+                                </div>
+                                <div class="upload-main-text">
+                                    <span class="upload-primary-text">
+                                        <span class="workflow-start-hint">流程起点</span>
+                                        <span class="upload-action">拖拽图片到此处或 <span class="highlight">点击上传</span></span>
+                                    </span>
+                                </div>
+                                <div class="upload-formats">
+                                    <span class="format-label">支持格式</span>
+                                    <div class="format-tags">
+                                        <el-tag size="small" effect="dark" class="format-tag">JPG</el-tag>
+                                        <el-tag size="small" effect="dark" class="format-tag">PNG</el-tag>
+                                        <el-tag size="small" effect="dark" class="format-tag">WEBP</el-tag>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 已上传状态：显示原图预览 -->
+                            <div v-else class="upload-preview-state">
+                                <div class="preview-image-wrapper">
+                                    <img :src="originalImage" alt="已选择的原图" class="preview-image" />
+                                </div>
+                                <div class="preview-overlay">
+                                    <div class="preview-info">
+                                        <el-icon :size="16"><DocumentChecked /></el-icon>
+                                        <span class="preview-filename">{{ currentFile?.name }}</span>
+                                    </div>
+                                    <span class="preview-hint">点击或拖拽可更换图片</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="action-buttons">
-                    <el-button
-                        type="primary"
-                        :disabled="!canStart"
-                        :loading="isRunning"
-                        @click="startWorkflow"
-                    >
-                        <el-icon><video-play /></el-icon>
-                        开始智能流程
-                    </el-button>
-                    <el-button
-                        :disabled="isRunning || (!originalImage && !hasAnyResult)"
-                        @click="resetWorkflow"
-                    >
-                        <el-icon><refresh /></el-icon>
-                        重置
-                    </el-button>
+
+                <!-- 流程执行区 -->
+                <div class="workflow-action-section">
+                    <div class="section-subtitle tag-style-subtitle">
+                        <div class="subtitle-badge">
+                            <el-icon class="subtitle-icon" :size="14"><VideoPlay /></el-icon>
+                            <span class="subtitle-text">流程执行</span>
+                        </div>
+                    </div>
+                    <div class="action-buttons">
+                        <el-button
+                            type="primary"
+                            size="large"
+                            :disabled="!canStart"
+                            :loading="isRunning"
+                            @click="startWorkflow"
+                            class="action-btn submit-btn"
+                        >
+                            <el-icon :size="18"><video-play /></el-icon>
+                            <span>{{ isRunning ? '执行中...' : '开始智能流程' }}</span>
+                        </el-button>
+                        <el-button
+                            size="large"
+                            :disabled="isRunning || (!originalImage && !hasAnyResult)"
+                            @click="resetWorkflow"
+                            class="action-btn clear-btn"
+                        >
+                            <el-icon :size="16"><refresh /></el-icon>
+                            <span>重置流程</span>
+                        </el-button>
+                    </div>
+                </div>
+
+                <!-- 调试工具区 -->
+                <div class="workflow-debug-section">
+                    <div class="debug-header" @click="showDebug = !showDebug">
+                        <div class="debug-title">
+                            <el-icon :size="16"><InfoFilled /></el-icon>
+                            <span>调试工具</span>
+                        </div>
+                        <el-icon class="debug-toggle-icon" :class="{ 'is-active': showDebug }">
+                            <ArrowDown v-if="showDebug" />
+                            <ArrowRight v-else />
+                        </el-icon>
+                    </div>
+                    <el-collapse-transition>
+                        <div v-show="showDebug" class="debug-content">
+                            <div class="debug-info-grid">
+                                <div class="debug-item">
+                                    <span class="debug-label">图片状态</span>
+                                    <el-tag size="small" :type="originalImage ? 'success' : 'info'">{{ originalImage ? '已上传' : '未上传' }}</el-tag>
+                                </div>
+                                <div class="debug-item">
+                                    <span class="debug-label">流程状态</span>
+                                    <el-tag size="small" :type="isRunning ? 'primary' : workflowStatus === 'completed' ? 'success' : workflowStatus === 'error' ? 'danger' : 'info'">{{ getWorkflowStatusTitle() }}</el-tag>
+                                </div>
+                                <div class="debug-item">
+                                    <span class="debug-label">当前步骤</span>
+                                    <el-tag size="small">{{ currentStep > 0 ? '第 ' + currentStep + ' 步' : '未开始' }}</el-tag>
+                                </div>
+                                <div class="debug-item">
+                                    <span class="debug-label">执行条件</span>
+                                    <el-tag size="small" :type="canStart ? 'success' : 'warning'">{{ canStart ? '满足' : '不满足' }}</el-tag>
+                                </div>
+                                <div class="debug-item" v-if="currentFile">
+                                    <span class="debug-label">当前文件:</span>
+                                    <span class="debug-value">{{ currentFile?.name }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </el-collapse-transition>
                 </div>
             </div>
-            
-            <!-- 调试开关与折叠面板 -->
-            <div class="debug-toggle">
-                <el-switch
-                    v-model="showDebug"
-                    active-text="显示调试信息"
-                    inline-prompt
-                    size="small"
-                />
-            </div>
-            <el-collapse v-if="showDebug" class="debug-collapse">
-                <el-collapse-item title="调试信息" name="1">
-                    <pre>originalImage: {{ !!originalImage }}
-canStart: {{ canStart }}
-isRunning: {{ isRunning }}
-workflowStatus: {{ workflowStatus }}
-currentFile: {{ currentFile?.name || 'null' }}</pre>
-                </el-collapse-item>
-            </el-collapse>
-        </el-card>
+        </div>
 
-        <!-- 结果展示区：2×2 网格 -->
+        <!-- 工作流结果区：2×2 网格 -->
         <div v-if="originalImage" class="results-section">
+            <!-- Workflow 状态总览卡片 -->
+            <div class="panel-card workflow-summary-card" :class="{ 'is-running': isRunning, 'is-completed': workflowStatus === 'completed', 'is-error': workflowStatus === 'error' }">
+                <div class="summary-main">
+                    <div class="summary-status">
+                        <div class="status-icon-wrapper" :class="workflowStatus">
+                            <el-icon v-if="workflowStatus === 'idle'" :size="24"><Timer /></el-icon>
+                            <el-icon v-else-if="workflowStatus === 'running'" :size="24" class="is-loading"><Loading /></el-icon>
+                            <el-icon v-else-if="workflowStatus === 'completed'" :size="24"><CircleCheck /></el-icon>
+                            <el-icon v-else-if="workflowStatus === 'error'" :size="24"><Warning /></el-icon>
+                        </div>
+                        <div class="status-info">
+                            <div class="status-title">{{ getWorkflowStatusTitle() }}</div>
+                            <div class="status-desc">{{ getWorkflowStatusDesc() }}</div>
+                        </div>
+                    </div>
+                    <div v-if="totalDuration > 0" class="summary-duration">
+                        <div class="duration-value">{{ formatDuration(totalDuration) }}</div>
+                        <div class="duration-label">总耗时</div>
+                    </div>
+                </div>
+                <!-- 步骤进度条 -->
+                <div class="summary-progress">
+                    <div class="progress-steps">
+                        <div class="progress-step" :class="{ active: originalImage, completed: originalImage }">
+                            <div class="step-dot"></div>
+                            <span class="step-label">原图</span>
+                        </div>
+                        <div class="progress-line" :class="{ completed: detectStatus === 'success' || detectStatus === 'error' }"></div>
+                        <div class="progress-step" :class="{ active: detectStatus !== 'idle', completed: detectStatus === 'success', error: detectStatus === 'error' }">
+                            <div class="step-dot"></div>
+                            <span class="step-label">识别</span>
+                        </div>
+                        <div class="progress-line" :class="{ completed: maskStatus === 'success' || maskStatus === 'error' }"></div>
+                        <div class="progress-step" :class="{ active: maskStatus !== 'idle', completed: maskStatus === 'success', error: maskStatus === 'error' }">
+                            <div class="step-dot"></div>
+                            <span class="step-label">掩码</span>
+                        </div>
+                        <div class="progress-line" :class="{ completed: enhanceStatus === 'success' || enhanceStatus === 'error' }"></div>
+                        <div class="progress-step" :class="{ active: enhanceStatus !== 'idle', completed: enhanceStatus === 'success', error: enhanceStatus === 'error' }">
+                            <div class="step-dot"></div>
+                            <span class="step-label">增强</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- 步骤统计 -->
+                <div class="summary-stats">
+                    <div class="stat-item">
+                        <span class="stat-value success">{{ [detectStatus, maskStatus, enhanceStatus].filter(s => s === 'success').length }}</span>
+                        <span class="stat-label">完成</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value">{{ [detectStatus, maskStatus, enhanceStatus].filter(s => s === 'running').length }}</span>
+                        <span class="stat-label">执行中</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value" :class="{ error: [detectStatus, maskStatus, enhanceStatus].some(s => s === 'error') }">{{ [detectStatus, maskStatus, enhanceStatus].filter(s => s === 'error').length }}</span>
+                        <span class="stat-label">失败</span>
+                    </div>
+                    <div class="stat-divider"></div>
+                    <div class="stat-item">
+                        <span class="stat-value">{{ [detectStatus, maskStatus, enhanceStatus].filter(s => s === 'idle').length }}</span>
+                        <span class="stat-label">待执行</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤卡片网格 -->
+            <div class="step-cards-header">
+                <div class="section-title">
+                    <el-icon :size="18"><Grid /></el-icon>
+                    <span>流程执行结果</span>
+                </div>
+                <div class="step-flow-hint">
+                    <el-icon :size="14"><ArrowRight /></el-icon>
+                    <span>顺序执行</span>
+                </div>
+            </div>
             <div class="results-grid">
                 <!-- Step 1: 原图 -->
-                <el-card class="result-card step-card" shadow="hover">
-                    <template #header>
-                        <div class="card-header">
-                            <div class="card-title-group">
-                                <span class="step-badge step-badge-input">01</span>
-                                <span class="card-title">
-                                    <el-icon><picture /></el-icon>
-                                    原图
-                                </span>
+                <div class="panel-card step-panel-card">
+                    <div class="step-card-header">
+                        <div class="step-header-main">
+                            <div class="step-badge-wrapper">
+                                <span class="step-number step-number-input">01</span>
                             </div>
-                            <el-tag type="info" size="small" effect="light">原始输入</el-tag>
+                            <div class="step-info">
+                                <div class="step-name">
+                                    <el-icon :size="16"><Picture /></el-icon>
+                                    <span>原图</span>
+                                </div>
+                                <div class="step-desc">流程起点</div>
+                            </div>
                         </div>
-                    </template>
-                    <div class="image-container">
-                        <img :src="originalImage" alt="原图" class="result-image" />
+                        <el-tag type="info" size="small" effect="dark" class="step-status-tag">原始输入</el-tag>
                     </div>
-                </el-card>
+                    <div class="step-card-body">
+                        <div class="result-display-box">
+                            <img :src="originalImage" alt="原图" class="result-media" />
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Step 2: 图像识别 -->
-                <el-card class="result-card step-card" shadow="hover">
-                    <template #header>
-                        <div class="card-header">
-                            <div class="card-title-group">
-                                <span class="step-badge">02</span>
-                                <span class="card-title">
-                                    <el-icon><aim /></el-icon>
-                                    图像识别
-                                </span>
+                <div class="panel-card step-panel-card" :class="{ 'step-active': detectStatus === 'running' }">
+                    <div class="step-card-header">
+                        <div class="step-header-main">
+                            <div class="step-badge-wrapper">
+                                <span class="step-number" :class="{ 'step-running': detectStatus === 'running', 'step-success': detectStatus === 'success', 'step-error': detectStatus === 'error' }">02</span>
+                                <div v-if="detectStatus === 'running'" class="step-spinner"></div>
                             </div>
-                            <div class="header-right">
-                                <el-tag :type="getStatusType(detectStatus)" size="small" effect="light">
-                                    {{ getStatusText(detectStatus) }}
-                                </el-tag>
-                                <span v-if="stepDurations.detect > 0" class="duration">
-                                    {{ formatDuration(stepDurations.detect) }}
-                                </span>
+                            <div class="step-info">
+                                <div class="step-name">
+                                    <el-icon :size="16"><Aim /></el-icon>
+                                    <span>图像识别</span>
+                                </div>
+                                <div class="step-meta">
+                                    <el-tag :type="getStatusType(detectStatus)" size="small" effect="dark" class="step-status-tag">
+                                        {{ getStatusText(detectStatus) }}
+                                    </el-tag>
+                                    <span v-if="stepDurations.detect > 0" class="step-duration">
+                                        {{ formatDuration(stepDurations.detect) }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                    </template>
-                    <div class="image-container">
-                        <canvas
-                            v-if="detectStatus !== 'idle'"
-                            ref="detectCanvas"
-                            class="result-canvas"
-                        ></canvas>
-                        <div v-else class="placeholder">
-                            <el-icon><aim /></el-icon>
-                            <span>等待执行</span>
+                    </div>
+                    <div class="step-card-body">
+                        <div class="result-display-box">
+                            <canvas
+                                v-if="detectStatus !== 'idle'"
+                                ref="detectCanvas"
+                                class="result-media"
+                            ></canvas>
+                            <div v-else class="step-placeholder">
+                                <div class="placeholder-icon-wrapper">
+                                    <el-icon :size="36"><Aim /></el-icon>
+                                </div>
+                                <span class="placeholder-text">待执行</span>
+                                <span class="placeholder-desc">将对上传图片进行目标检测</span>
+                            </div>
+                        </div>
+                        <div v-if="detectStatus === 'success'" class="step-result-info success">
+                            <el-icon :size="16"><CircleCheck /></el-icon>
+                            <span>检测完成，共 <strong>{{ detectCount }}</strong> 个目标</span>
+                        </div>
+                        <div v-if="detectStatus === 'error'" class="step-result-info error">
+                            <el-icon :size="16"><Warning /></el-icon>
+                            <span>检测失败：{{ errorMessage || '未知错误' }}</span>
                         </div>
                     </div>
-                    <div v-if="detectStatus === 'success'" class="result-info">
-                        <el-text type="success">
-                            检测到 <strong>{{ detectCount }}</strong> 个目标
-                        </el-text>
-                    </div>
-                    <div v-if="detectStatus === 'error'" class="result-info">
-                        <el-text type="danger">{{ errorMessage }}</el-text>
-                    </div>
-                </el-card>
+                </div>
 
                 <!-- Step 3: 掩码生成 -->
-                <el-card class="result-card step-card" shadow="hover">
-                    <template #header>
-                        <div class="card-header">
-                            <div class="card-title-group">
-                                <span class="step-badge">03</span>
-                                <span class="card-title">
-                                    <el-icon><copy-document /></el-icon>
-                                    掩码生成
-                                </span>
+                <div class="panel-card step-panel-card" :class="{ 'step-active': maskStatus === 'running' }">
+                    <div class="step-card-header">
+                        <div class="step-header-main">
+                            <div class="step-badge-wrapper">
+                                <span class="step-number" :class="{ 'step-running': maskStatus === 'running', 'step-success': maskStatus === 'success', 'step-error': maskStatus === 'error' }">03</span>
+                                <div v-if="maskStatus === 'running'" class="step-spinner"></div>
                             </div>
-                            <div class="header-right">
-                                <el-tag :type="getStatusType(maskStatus)" size="small" effect="light">
-                                    {{ getStatusText(maskStatus) }}
-                                </el-tag>
-                                <span v-if="stepDurations.mask > 0" class="duration">
-                                    {{ formatDuration(stepDurations.mask) }}
-                                </span>
+                            <div class="step-info">
+                                <div class="step-name">
+                                    <el-icon :size="16"><CopyDocument /></el-icon>
+                                    <span>掩码生成</span>
+                                </div>
+                                <div class="step-meta">
+                                    <el-tag :type="getStatusType(maskStatus)" size="small" effect="dark" class="step-status-tag">
+                                        {{ getStatusText(maskStatus) }}
+                                    </el-tag>
+                                    <span v-if="stepDurations.mask > 0" class="step-duration">
+                                        {{ formatDuration(stepDurations.mask) }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                    </template>
-                    <div class="image-container">
-                        <img
-                            v-if="maskImage"
-                            :src="maskImage"
-                            alt="掩码结果"
-                            class="result-image"
-                        />
-                        <div v-else class="placeholder">
-                            <el-icon><copy-document /></el-icon>
-                            <span>{{ maskStatus === 'running' ? '生成中...' : '等待执行' }}</span>
+                    </div>
+                    <div class="step-card-body">
+                        <div class="result-display-box">
+                            <img
+                                v-if="maskImage"
+                                :src="maskImage"
+                                alt="掩码结果"
+                                class="result-media"
+                            />
+                            <div v-else class="step-placeholder">
+                                <div class="placeholder-icon-wrapper">
+                                    <el-icon :size="36"><CopyDocument /></el-icon>
+                                </div>
+                                <span class="placeholder-text">{{ maskStatus === 'running' ? '生成中...' : '待执行' }}</span>
+                                <span class="placeholder-desc">基于检测结果生成实例掩码</span>
+                            </div>
+                        </div>
+                        <div v-if="maskStatus === 'error' && detectStatus === 'success'" class="step-result-info error">
+                            <el-icon :size="16"><Warning /></el-icon>
+                            <span>掩码生成失败</span>
                         </div>
                     </div>
-                    <div v-if="maskStatus === 'error' && detectStatus === 'success'" class="result-info">
-                        <el-text type="danger">掩码生成失败</el-text>
-                    </div>
-                </el-card>
+                </div>
 
                 <!-- Step 4: 图像增强 -->
-                <el-card class="result-card step-card" shadow="hover">
-                    <template #header>
-                        <div class="card-header">
-                            <div class="card-title-group">
-                                <span class="step-badge">04</span>
-                                <span class="card-title">图像增强</span>
+                <div class="panel-card step-panel-card" :class="{ 'step-active': enhanceStatus === 'running' }">
+                    <div class="step-card-header">
+                        <div class="step-header-main">
+                            <div class="step-badge-wrapper">
+                                <span class="step-number" :class="{ 'step-running': enhanceStatus === 'running', 'step-success': enhanceStatus === 'success', 'step-error': enhanceStatus === 'error' }">04</span>
+                                <div v-if="enhanceStatus === 'running'" class="step-spinner"></div>
                             </div>
-                            <el-tag :type="getStatusType(enhanceStatus)" size="small" effect="light">
-                                {{ getStatusText(enhanceStatus) }}
-                            </el-tag>
-                        </div>
-                    </template>
-                    <!-- 增强进度 -->
-                    <div v-if="enhanceStatus === 'running' && enhanceProgress.currentTargetName" class="target-info">
-                        <el-text type="info" size="small">
-                            正在增强: <strong>{{ enhanceProgress.currentTargetName }}</strong>
-                        </el-text>
-                    </div>
-                    <!-- 增强结果提示 -->
-                    <div v-if="enhanceStatus === 'success' && maskData.length > 0" class="target-info">
-                        <el-text type="success" size="small">
-                            mask 级精确增强完成
-                        </el-text>
-                    </div>
-                    <div v-if="enhanceStatus === 'success' && maskData.length === 0" class="target-info">
-                        <el-text type="success" size="small">
-                            mask 级精确增强完成
-                        </el-text>
-                    </div>
-                    <!-- 增强前提示 -->
-                    <div v-if="enhanceStatus === 'idle' && detectCount > 0" class="target-info">
-                        <el-text type="info" size="small">
-                            共检测到 {{ detectCount }} 个目标，将增强最高置信度目标
-                            <span v-if="maskData.length > 0">（优先使用 mask 精确增强）</span>
-                        </el-text>
-                    </div>
-                    <div class="image-container">
-                        <img
-                            v-if="enhanceImage"
-                            :src="enhanceImage"
-                            alt="增强结果"
-                            class="result-image"
-                        />
-                        <div v-else class="placeholder">
-                            <span>{{ enhanceStatus === 'running' ? '增强中...' : '等待执行' }}</span>
+                            <div class="step-info">
+                                <div class="step-name">
+                                    <el-icon :size="16"><MagicStick /></el-icon>
+                                    <span>图像增强</span>
+                                </div>
+                                <div class="step-meta">
+                                    <el-tag :type="getStatusType(enhanceStatus)" size="small" effect="dark" class="step-status-tag">
+                                        {{ getStatusText(enhanceStatus) }}
+                                    </el-tag>
+                                    <span v-if="stepDurations.enhance > 0" class="step-duration">
+                                        {{ formatDuration(stepDurations.enhance) }}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <div v-if="enhanceStatus === 'error' && maskStatus === 'success'" class="result-info">
-                        <el-text type="danger">{{ errorMessage || '图像增强失败' }}</el-text>
+                    <div class="step-card-body">
+                        <!-- 增强进度提示 -->
+                        <div v-if="enhanceStatus === 'running' && enhanceProgress.currentTargetName" class="step-progress-info">
+                            <el-icon :size="16" class="is-loading"><Loading /></el-icon>
+                            <span>正在增强：<strong>{{ enhanceProgress.currentTargetName }}</strong></span>
+                        </div>
+                        <!-- 增强结果提示 -->
+                        <div v-if="enhanceStatus === 'success'" class="step-progress-info success">
+                            <el-icon :size="16"><CircleCheck /></el-icon>
+                            <span>{{ maskData.length > 0 ? 'Mask 级精确增强完成' : '图像增强完成' }}</span>
+                        </div>
+                        <!-- 增强前提示 -->
+                        <div v-if="enhanceStatus === 'idle' && detectCount > 0" class="step-progress-info">
+                            <el-icon :size="16"><InfoFilled /></el-icon>
+                            <span>将对最高置信度目标进行增强<span v-if="maskData.length > 0"> (Mask 精确增强)</span></span>
+                        </div>
+                        <div class="result-display-box">
+                            <img
+                                v-if="enhanceImage"
+                                :src="enhanceImage"
+                                alt="增强结果"
+                                class="result-media"
+                            />
+                            <div v-else class="step-placeholder">
+                                <div class="placeholder-icon-wrapper">
+                                    <el-icon :size="36"><MagicStick /></el-icon>
+                                </div>
+                                <span class="placeholder-text">{{ enhanceStatus === 'running' ? '增强中...' : '待执行' }}</span>
+                                <span class="placeholder-desc">基于掩码精确增强目标区域</span>
+                            </div>
+                        </div>
+                        <div v-if="enhanceStatus === 'error' && maskStatus === 'success'" class="step-result-info error">
+                            <el-icon :size="16"><Warning /></el-icon>
+                            <span>增强失败：{{ errorMessage || '未知错误' }}</span>
+                        </div>
                     </div>
-                </el-card>
+                </div>
             </div>
 
-            <!-- 总耗时 -->
-            <div v-if="totalDuration > 0" class="total-duration">
-                总耗时: {{ formatDuration(totalDuration) }}
-            </div>
         </div>
     </div>
 </template>
@@ -251,7 +450,20 @@ import {
     Refresh,
     Picture,
     Aim,
-    CopyDocument
+    CopyDocument,
+    MagicStick,
+    DocumentChecked,
+    InfoFilled,
+    ArrowDown,
+    ArrowRight,
+    CircleCheck,
+    Warning,
+    Loading,
+    Timer,
+    Grid,
+    Cpu,
+    Operation,
+    SwitchButton
 } from '@element-plus/icons-vue'
 import { callModels } from '../../../../utils/api'
 
@@ -1064,11 +1276,1554 @@ function formatDuration(ms: number): string {
     }
     return `${(ms / 1000).toFixed(2)}s`
 }
+
+// Workflow 状态文案
+function getWorkflowStatusTitle(): string {
+    const titles: Record<string, string> = {
+        idle: '准备就绪',
+        running: '流程执行中',
+        completed: '流程完成',
+        error: '流程执行失败'
+    }
+    return titles[workflowStatus.value] || '未知状态'
+}
+
+function getWorkflowStatusDesc(): string {
+    const descs: Record<string, string> = {
+        idle: '点击"开始智能流程"执行四阶段处理',
+        running: `正在执行第 ${currentStep.value} 步 / 共 3 步`,
+        completed: `四阶段处理已完成，总耗时 ${formatDuration(totalDuration.value)}`,
+        error: `流程执行中断，请检查错误信息并重试`
+    }
+    return descs[workflowStatus.value] || ''
+}
 </script>
 
 <style scoped>
-.workflow-form {
-    padding: 0;
+/* ===== 页面基础容器 ===== */
+.workflow-container {
+    width: 100%;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 0 1rem 1.5rem;
+}
+
+/* ===== 页面头部 ===== */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding: 1rem 1.25rem;
+    background: rgba(30, 30, 40, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+.header-main {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+}
+
+/* 智能流程图标 - 产品级模块标识设计 */
+.header-icon.workflow-icon {
+    position: relative;
+    width: 54px;
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    overflow: visible;
+}
+
+.icon-layer {
+    position: absolute;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+}
+
+/* 外层：主渐变背景 + 发光效果 */
+.icon-layer.layer-1 {
+    inset: 0;
+    background: 
+        linear-gradient(145deg, rgba(64, 158, 255, 0.4) 0%, rgba(22, 119, 255, 0.35) 50%, rgba(103, 194, 58, 0.25) 100%);
+    border: 1.5px solid rgba(64, 158, 255, 0.5);
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 4px 20px rgba(64, 158, 255, 0.3),
+        inset 0 1px 1px rgba(255, 255, 255, 0.25),
+        inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* 中层：内嵌高光层 */
+.icon-layer.layer-2 {
+    inset: 2px;
+    background: 
+        linear-gradient(145deg, rgba(255, 255, 255, 0.15) 0%, rgba(64, 158, 255, 0.1) 40%, transparent 100%);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+}
+
+/* 内层：深色底座 */
+.icon-layer.layer-3 {
+    inset: 5px;
+    background: 
+        linear-gradient(145deg, rgba(30, 40, 60, 0.8) 0%, rgba(20, 30, 50, 0.9) 100%);
+    border: 1px solid rgba(64, 158, 255, 0.25);
+    border-radius: 11px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 流程节点装饰 */
+.icon-nodes {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.icon-nodes .node {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: rgba(64, 158, 255, 0.8);
+    border-radius: 50%;
+    box-shadow: 
+        0 0 6px rgba(64, 158, 255, 0.6),
+        inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.icon-nodes .node-1 {
+    top: 10px;
+    left: 10px;
+}
+
+.icon-nodes .node-2 {
+    top: 10px;
+    right: 10px;
+}
+
+.icon-nodes .node-3 {
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* 主图标 */
+.header-icon.workflow-icon .main-icon {
+    position: relative;
+    z-index: 2;
+    color: #fff;
+    filter: 
+        drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))
+        drop-shadow(0 0 8px rgba(64, 158, 255, 0.4));
+}
+
+/* Hover 时图标动效 */
+.page-header:hover .icon-layer.layer-1 {
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 6px 28px rgba(64, 158, 255, 0.4),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3),
+        inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+    border-color: rgba(64, 158, 255, 0.6);
+}
+
+.page-header:hover .icon-layer.layer-2 {
+    background: 
+        linear-gradient(145deg, rgba(255, 255, 255, 0.2) 0%, rgba(64, 158, 255, 0.15) 40%, transparent 100%);
+}
+
+.page-header:hover .icon-nodes .node {
+    background: rgba(103, 194, 58, 0.9);
+    box-shadow: 
+        0 0 8px rgba(103, 194, 58, 0.6),
+        inset 0 1px 1px rgba(255, 255, 255, 0.5);
+}
+
+.page-header:hover .main-icon {
+    filter: 
+        drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))
+        drop-shadow(0 0 12px rgba(64, 158, 255, 0.5));
+}
+
+/* 保留旧 header-icon 样式用于兼容 */
+.header-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #409eff 0%, #1677ff 100%);
+    border-radius: 12px;
+    color: white;
+    box-shadow: 0 4px 12px rgba(64, 158, 255, 0.25);
+}
+
+.header-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.page-title {
+    font-size: 1.375rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0;
+    letter-spacing: 0.5px;
+}
+
+.page-subtitle {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+}
+
+/* ===== 统一卡片系统 ===== */
+.panel-card {
+    background: rgba(30, 30, 40, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+}
+
+.panel-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+.panel-card .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1.25rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.panel-card .card-title-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* 居中标题组 - 流程控制 */
+.card-header.centered-header {
+    justify-content: center;
+    position: relative;
+}
+
+.card-title-group.centered-title {
+    justify-content: center;
+    padding: 0.375rem 1.25rem;
+    background: 
+        linear-gradient(135deg, rgba(64, 158, 255, 0.1) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border: 1px solid rgba(64, 158, 255, 0.2);
+    border-radius: 24px;
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.card-title-group.centered-title .subtitle-icon {
+    color: #409eff;
+}
+
+.card-title-group.centered-title .card-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    letter-spacing: 0.5px;
+}
+
+.subtitle-icon {
+    color: #409eff;
+}
+
+.panel-card .card-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.panel-card .card-body {
+    padding: 1.25rem;
+}
+
+/* ===== 工作流结果区 ===== */
+.results-section {
+    margin-top: 1.5rem;
+}
+
+/* Workflow 汇总卡片 */
+.workflow-summary-card {
+    margin-bottom: 1.5rem;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.workflow-summary-card.is-running {
+    border-color: rgba(64, 158, 255, 0.3);
+    box-shadow: 0 0 20px rgba(64, 158, 255, 0.1);
+}
+
+.workflow-summary-card.is-completed {
+    border-color: rgba(103, 194, 58, 0.3);
+    box-shadow: 0 0 20px rgba(103, 194, 58, 0.1);
+}
+
+.workflow-summary-card.is-error {
+    border-color: rgba(245, 108, 108, 0.3);
+    box-shadow: 0 0 20px rgba(245, 108, 108, 0.1);
+}
+
+.summary-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+}
+
+.summary-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-icon-wrapper {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.5);
+    transition: all 0.3s ease;
+}
+
+.status-icon-wrapper.idle {
+    background: rgba(144, 147, 153, 0.1);
+    border-color: rgba(144, 147, 153, 0.2);
+    color: #909399;
+}
+
+.status-icon-wrapper.running {
+    background: rgba(64, 158, 255, 0.1);
+    border-color: rgba(64, 158, 255, 0.3);
+    color: #409eff;
+}
+
+.status-icon-wrapper.completed {
+    background: rgba(103, 194, 58, 0.1);
+    border-color: rgba(103, 194, 58, 0.3);
+    color: #67c23a;
+}
+
+.status-icon-wrapper.error {
+    background: rgba(245, 108, 108, 0.1);
+    border-color: rgba(245, 108, 108, 0.3);
+    color: #f56c6c;
+}
+
+.status-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.status-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.status-desc {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.summary-duration {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+    padding: 0.5rem 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+}
+
+.duration-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #409eff;
+    font-family: monospace;
+    line-height: 1;
+}
+
+.duration-label {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+/* 步骤进度条 */
+.summary-progress {
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.progress-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.progress-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+    opacity: 0.4;
+    transition: all 0.3s ease;
+}
+
+.progress-step.active {
+    opacity: 1;
+}
+
+.progress-step.completed .step-dot {
+    background: #67c23a;
+    border-color: #67c23a;
+}
+
+.progress-step.error .step-dot {
+    background: #f56c6c;
+    border-color: #f56c6c;
+}
+
+.progress-step.completed .step-label,
+.progress-step.active .step-label {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.step-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+}
+
+.progress-step.active .step-dot {
+    background: #409eff;
+    border-color: #409eff;
+    box-shadow: 0 0 8px rgba(64, 158, 255, 0.5);
+}
+
+.step-label {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.4);
+    white-space: nowrap;
+}
+
+.progress-line {
+    width: 40px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.progress-line.completed {
+    background: #67c23a;
+}
+
+/* 步骤统计 */
+.summary-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 60px;
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.6);
+    font-family: monospace;
+    line-height: 1;
+}
+
+.stat-value.success {
+    color: #67c23a;
+}
+
+.stat-value.error {
+    color: #f56c6c;
+}
+
+.stat-label {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.stat-divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* 步骤卡片区头部 */
+.step-cards-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding: 0 0.25rem;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.step-flow-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.results-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    align-items: stretch;
+}
+
+/* 步骤卡片 */
+.step-panel-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    transition: all 0.3s ease;
+}
+
+.step-panel-card.step-active {
+    border-color: rgba(64, 158, 255, 0.3);
+    box-shadow: 0 0 20px rgba(64, 158, 255, 0.1);
+}
+
+/* 步骤卡片头部 */
+.step-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.step-header-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+/* 步骤编号 */
+.step-badge-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #409eff 0%, #1677ff 100%);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(64, 158, 255, 0.25);
+    transition: all 0.3s ease;
+}
+
+.step-number-input {
+    background: linear-gradient(135deg, #909399 0%, #606266 100%);
+    box-shadow: 0 2px 8px rgba(144, 147, 153, 0.25);
+}
+
+.step-number.step-running {
+    background: linear-gradient(135deg, #409eff 0%, #1677ff 100%);
+    animation: step-pulse 2s ease-in-out infinite;
+}
+
+.step-number.step-success {
+    background: linear-gradient(135deg, #67c23a 0%, #529b2e 100%);
+    box-shadow: 0 2px 8px rgba(103, 194, 58, 0.25);
+}
+
+.step-number.step-error {
+    background: linear-gradient(135deg, #f56c6c 0%, #c45656 100%);
+    box-shadow: 0 2px 8px rgba(245, 108, 108, 0.25);
+}
+
+@keyframes step-pulse {
+    0%, 100% { box-shadow: 0 2px 8px rgba(64, 158, 255, 0.25); }
+    50% { box-shadow: 0 2px 16px rgba(64, 158, 255, 0.5); }
+}
+
+/* 旋转动画 */
+.step-spinner {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    border: 2px solid transparent;
+    border-top-color: #409eff;
+    border-right-color: #409eff;
+    border-radius: 50%;
+    animation: step-spin 1s linear infinite;
+}
+
+@keyframes step-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* 步骤信息 */
+.step-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.step-name {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.step-desc {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.step-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.step-status-tag {
+    font-weight: 500;
+}
+
+.step-duration {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: monospace;
+}
+
+/* 步骤卡片内容区 */
+.step-card-body {
+    flex: 1;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* 结果展示区 */
+.result-display-box {
+    flex: 1;
+    min-height: 240px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.3), rgba(20, 20, 30, 0.4));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.result-media {
+    max-width: 100%;
+    max-height: 280px;
+    object-fit: contain;
+    display: block;
+}
+
+/* 空状态/占位符 */
+.step-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.placeholder-icon-wrapper {
+    width: 72px;
+    height: 72px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.step-placeholder:hover .placeholder-icon-wrapper {
+    background: rgba(64, 158, 255, 0.06);
+    border-color: rgba(64, 158, 255, 0.2);
+}
+
+.placeholder-text {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.placeholder-desc {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.35);
+    max-width: 200px;
+    line-height: 1.4;
+}
+
+/* 步骤进度/结果信息 */
+.step-progress-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(64, 158, 255, 0.08);
+    border: 1px solid rgba(64, 158, 255, 0.15);
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.step-progress-info.success {
+    background: rgba(103, 194, 58, 0.08);
+    border-color: rgba(103, 194, 58, 0.15);
+    color: #67c23a;
+}
+
+.step-progress-info :deep(.el-icon.is-loading) {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.step-result-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+}
+
+.step-result-info.success {
+    background: rgba(103, 194, 58, 0.1);
+    border: 1px solid rgba(103, 194, 58, 0.2);
+    color: #67c23a;
+}
+
+.step-result-info.error {
+    background: rgba(245, 108, 108, 0.1);
+    border: 1px solid rgba(245, 108, 108, 0.2);
+    color: #f56c6c;
+}
+
+/* ===== 流程控制区 ===== */
+.control-card {
+    margin-bottom: 1.5rem;
+}
+
+.control-card .card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+/* 小标题统一样式 */
+.section-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* 居中小标题 */
+.section-subtitle.centered-subtitle {
+    justify-content: center;
+}
+
+/* 标签式小标题 - 带框感/卡片感 */
+.section-subtitle.tag-style-subtitle {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.subtitle-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: 
+        linear-gradient(135deg, rgba(64, 158, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+    border: 1px solid rgba(64, 158, 255, 0.2);
+    border-radius: 20px;
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: all 0.25s ease;
+}
+
+.subtitle-badge:hover {
+    background: 
+        linear-gradient(135deg, rgba(64, 158, 255, 0.12) 0%, rgba(255, 255, 255, 0.05) 100%);
+    border-color: rgba(64, 158, 255, 0.3);
+    box-shadow: 
+        0 4px 12px rgba(64, 158, 255, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.subtitle-badge .subtitle-icon {
+    color: #409eff;
+    font-size: 14px;
+}
+
+.subtitle-badge .subtitle-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    letter-spacing: 0.5px;
+}
+
+.section-subtitle .subtitle-icon {
+    color: #409eff;
+}
+
+.section-subtitle .subtitle-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* ===== 流程输入区 ===== */
+.workflow-input-section {
+    width: 100%;
+}
+
+.upload-wrapper {
+    position: relative;
+}
+
+/* 彻底隐藏原生文件输入框及其默认提示 */
+.native-file-input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 10;
+    font-size: 0;
+    color: transparent;
+}
+
+.native-file-input::-webkit-file-upload-button {
+    visibility: hidden;
+    display: none;
+}
+
+.native-file-input::file-selector-button {
+    visibility: hidden;
+    display: none;
+}
+
+/* 智能流程专用上传区 - 更精致的设计 */
+.upload-drop-zone.workflow-upload-zone {
+    position: relative;
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    border-radius: 14px;
+    padding: 2rem 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: 
+        linear-gradient(135deg, rgba(64, 158, 255, 0.03) 0%, rgba(103, 194, 58, 0.02) 100%),
+        rgba(255, 255, 255, 0.02);
+    box-shadow: 
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.upload-drop-zone.workflow-upload-zone:hover {
+    border-color: rgba(64, 158, 255, 0.5);
+    background: 
+        linear-gradient(135deg, rgba(64, 158, 255, 0.08) 0%, rgba(103, 194, 58, 0.04) 100%),
+        rgba(255, 255, 255, 0.03);
+    box-shadow: 
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 4px 16px rgba(64, 158, 255, 0.15);
+    transform: translateY(-1px);
+}
+
+.upload-drop-zone.workflow-upload-zone.drag-over {
+    border-color: #409eff;
+    border-style: solid;
+    background: 
+        linear-gradient(135deg, rgba(64, 158, 255, 0.12) 0%, rgba(103, 194, 58, 0.06) 100%),
+        rgba(255, 255, 255, 0.04);
+    box-shadow: 
+        inset 0 1px 0 rgba(255, 255, 255, 0.1),
+        0 0 0 3px rgba(64, 158, 255, 0.1),
+        0 8px 24px rgba(64, 158, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.upload-drop-zone.workflow-upload-zone.has-file {
+    border-color: rgba(103, 194, 58, 0.4);
+    border-style: solid;
+    background: 
+        linear-gradient(135deg, rgba(103, 194, 58, 0.06) 0%, rgba(64, 158, 255, 0.03) 100%),
+        rgba(255, 255, 255, 0.02);
+}
+
+.upload-drop-zone.workflow-upload-zone.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+    transform: none;
+}
+
+/* 上传内容层次优化 - 完全居中 */
+.upload-drop-zone.workflow-upload-zone .upload-content,
+.upload-drop-zone.workflow-upload-zone .upload-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    text-align: center;
+    width: 100%;
+}
+
+/* 空状态文字层级居中 */
+.upload-empty-state .upload-main-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+}
+
+.upload-empty-state .upload-primary-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-align: center;
+}
+
+.upload-empty-state .upload-formats {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    text-align: center;
+    width: 100%;
+}
+
+/* ===== 上传后原图预览状态 ===== */
+.upload-preview-state {
+    position: relative;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.preview-image-wrapper {
+    width: 100%;
+    max-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.preview-image {
+    max-width: 100%;
+    max-height: 200px;
+    height: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.preview-overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    text-align: center;
+}
+
+.preview-info {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: #67c23a;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.preview-filename {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.preview-hint {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    transition: color 0.2s ease;
+}
+
+.upload-drop-zone.workflow-upload-zone:hover .preview-hint {
+    color: #409eff;
+}
+
+/* has-preview 状态的样式调整 */
+.upload-drop-zone.workflow-upload-zone.has-preview {
+    padding: 1rem;
+    background: 
+        linear-gradient(135deg, rgba(103, 194, 58, 0.08) 0%, rgba(64, 158, 255, 0.04) 100%),
+        rgba(255, 255, 255, 0.02);
+}
+
+/* 图标环形设计 */
+.upload-icon-ring {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.upload-icon-ring::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px dashed rgba(64, 158, 255, 0.2);
+    animation: ring-rotate 20s linear infinite;
+}
+
+@keyframes ring-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.upload-drop-zone.workflow-upload-zone:hover .upload-icon-ring::before {
+    border-color: rgba(64, 158, 255, 0.4);
+}
+
+.upload-icon-bg {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.15) 0%, rgba(22, 119, 255, 0.1) 100%);
+    border: 1px solid rgba(64, 158, 255, 0.25);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.upload-drop-zone.workflow-upload-zone:hover .upload-icon-bg {
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.25) 0%, rgba(22, 119, 255, 0.15) 100%);
+    border-color: rgba(64, 158, 255, 0.4);
+    transform: scale(1.05);
+}
+
+.upload-drop-zone.workflow-upload-zone .upload-main-icon {
+    color: rgba(64, 158, 255, 0.8);
+    transition: all 0.3s ease;
+}
+
+.upload-drop-zone.workflow-upload-zone:hover .upload-main-icon {
+    color: #409eff;
+}
+
+/* 上传文案层次 */
+.upload-drop-zone.workflow-upload-zone .upload-main-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.375rem;
+}
+
+.upload-primary-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.workflow-start-hint {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgba(64, 158, 255, 0.9);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0.25rem 0.75rem;
+    background: rgba(64, 158, 255, 0.1);
+    border: 1px solid rgba(64, 158, 255, 0.2);
+    border-radius: 20px;
+}
+
+.upload-action {
+    font-size: 0.9375rem;
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.5;
+}
+
+.upload-action .highlight {
+    color: #409eff;
+    font-weight: 600;
+}
+
+/* 已上传文件展示 */
+.file-selected {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.file-badge {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(103, 194, 58, 0.2) 0%, rgba(103, 194, 58, 0.1) 100%);
+    border: 1px solid rgba(103, 194, 58, 0.3);
+    border-radius: 50%;
+    color: #67c23a;
+}
+
+.file-selected .filename {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-selected .replace-hint {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.5);
+    transition: color 0.2s ease;
+}
+
+.upload-drop-zone.workflow-upload-zone:hover .file-selected .replace-hint {
+    color: #409eff;
+}
+
+/* 格式标签优化 */
+.upload-drop-zone.workflow-upload-zone .upload-formats {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.format-label {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.format-tags {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.format-tag {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* 保留旧样式用于兼容 */
+.upload-drop-zone {
+    border: 2px dashed rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 1.5rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.upload-drop-zone:hover {
+    border-color: rgba(64, 158, 255, 0.4);
+    background: rgba(64, 158, 255, 0.04);
+}
+
+.upload-drop-zone.drag-over {
+    border-color: #409eff;
+    background: rgba(64, 158, 255, 0.08);
+}
+
+.upload-drop-zone.has-file {
+    border-color: rgba(103, 194, 58, 0.4);
+    background: rgba(103, 194, 58, 0.04);
+}
+
+.upload-drop-zone.disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    text-align: center;
+}
+
+.upload-main-icon {
+    color: rgba(255, 255, 255, 0.3);
+    transition: color 0.3s ease;
+}
+
+.upload-drop-zone:hover .upload-main-icon {
+    color: #409eff;
+}
+
+.upload-main-text {
+    font-size: 0.9375rem;
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.5;
+}
+
+.upload-main-text .highlight {
+    color: #409eff;
+    font-weight: 500;
+}
+
+.upload-main-text .file-selected {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.upload-main-text .filename {
+    font-weight: 500;
+}
+
+.upload-main-text .replace-hint {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-left: 0.25rem;
+}
+
+.upload-formats {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+/* ===== 流程执行区 ===== */
+.workflow-action-section {
+    width: 100%;
+}
+
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    width: 100%;
+}
+
+/* ===== 按钮交互反馈优化 ===== */
+.action-btn {
+    width: 100% !important;
+    height: 46px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+/* 主按钮 - 开始智能流程 */
+.action-btn.submit-btn {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, #409eff 0%, #1677ff 100%);
+    border: none;
+    box-shadow: 
+        0 2px 8px rgba(64, 158, 255, 0.3),
+        0 4px 16px rgba(64, 158, 255, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.action-btn.submit-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* Hover 状态 */
+.action-btn.submit-btn:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 
+        0 4px 12px rgba(64, 158, 255, 0.4),
+        0 8px 24px rgba(64, 158, 255, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.action-btn.submit-btn:not(:disabled):hover::before {
+    opacity: 1;
+}
+
+/* Active / Pressed 状态 */
+.action-btn.submit-btn:not(:disabled):active {
+    transform: translateY(0);
+    box-shadow: 
+        0 1px 4px rgba(64, 158, 255, 0.3),
+        inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus 状态 */
+.action-btn.submit-btn:focus-visible {
+    outline: none;
+    box-shadow: 
+        0 0 0 3px rgba(64, 158, 255, 0.3),
+        0 4px 12px rgba(64, 158, 255, 0.4);
+}
+
+/* Disabled 状态 */
+.action-btn.submit-btn:disabled {
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.3) 0%, rgba(22, 119, 255, 0.3) 100%);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+/* Loading 状态 */
+.action-btn.submit-btn.is-loading {
+    background: linear-gradient(135deg, rgba(64, 158, 255, 0.6) 0%, rgba(22, 119, 255, 0.6) 100%);
+}
+
+/* 次按钮 - 重置流程 */
+.action-btn.clear-btn {
+    font-size: 0.875rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.action-btn.clear-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.05);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* Hover 状态 */
+.action-btn.clear-btn:not(:disabled):hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.action-btn.clear-btn:not(:disabled):hover::before {
+    opacity: 1;
+}
+
+/* Active / Pressed 状态 */
+.action-btn.clear-btn:not(:disabled):active {
+    transform: translateY(0);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Focus 状态 */
+.action-btn.clear-btn:focus-visible {
+    outline: none;
+    box-shadow: 
+        0 0 0 2px rgba(255, 255, 255, 0.1),
+        0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Disabled 状态 */
+.action-btn.clear-btn:disabled {
+    background: rgba(255, 255, 255, 0.02);
+    border-color: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.3);
+    cursor: not-allowed;
+}
+
+/* ===== 调试工具区 ===== */
+.workflow-debug-section {
+    margin-top: 0.5rem;
+    padding-top: 1rem;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.debug-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+}
+
+.debug-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.debug-title {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+.debug-toggle-icon {
+    color: rgba(255, 255, 255, 0.4);
+    transition: transform 0.25s ease;
+}
+
+.debug-toggle-icon.is-active {
+    transform: rotate(180deg);
+}
+
+.debug-content {
+    margin-top: 0.75rem;
+    padding: 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+}
+
+.debug-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.5rem;
+}
+
+.debug-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.debug-label {
+    color: rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+}
+
+.debug-value {
+    color: rgba(255, 255, 255, 0.7);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .upload-section {
@@ -1076,13 +2831,6 @@ function formatDuration(ms: number): string {
 }
 
 /* 控制栏：响应式 Flex */
-.control-bar {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
 .upload-area {
     flex: 1;
     min-width: 260px;
@@ -1123,49 +2871,6 @@ function formatDuration(ms: number): string {
     opacity: 0.6;
 }
 
-.upload-icon {
-    color: var(--el-text-color-secondary);
-    flex-shrink: 0;
-}
-
-.upload-drop-zone:hover .upload-icon {
-    color: var(--el-color-primary);
-}
-
-.upload-text {
-    font-size: 13px;
-    color: var(--el-text-color-regular);
-    line-height: 1.4;
-    flex: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.upload-text em {
-    color: var(--el-color-primary);
-    font-style: normal;
-    font-weight: 500;
-}
-
-.replace-hint {
-    margin-left: 4px;
-    color: var(--el-text-color-secondary);
-    font-weight: normal;
-}
-
-.upload-tip {
-    font-size: 11px;
-    color: var(--el-text-color-secondary);
-    flex-shrink: 0;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 10px;
-    flex-shrink: 0;
-}
-
 /* 调试信息 */
 .debug-toggle {
     margin-top: 12px;
@@ -1187,201 +2892,89 @@ function formatDuration(ms: number): string {
     border-radius: 4px;
 }
 
-/* 结果区 */
-.results-section {
-    margin-top: 20px;
-}
-
-/* 2×2 网格 */
-.results-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    align-items: stretch;
-}
-
-.result-card {
-    height: auto;
-}
-
-.result-card :deep(.el-card__header) {
-    padding: 12px 16px;
-}
-
-.result-card :deep(.el-card__body) {
-    padding: 16px;
-}
-
-/* 步骤卡片 */
-.step-card {
-    margin-bottom: 0;
-}
-
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.card-title-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.step-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--el-color-primary);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 600;
-    flex-shrink: 0;
-}
-
-.step-badge-input {
-    background: var(--el-color-info);
-}
-
-.card-title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    font-size: 15px;
-}
-
-.header-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.duration {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-}
-
-/* 图片容器：固定高度 + 透明背景，消除巨大灰色块 */
-.image-container {
-    width: 100%;
-    height: 280px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: transparent;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.result-image {
-    width: 100%;
-    height: 100%;
-    max-height: 280px;
-    object-fit: contain;
-    display: block;
-}
-
-.result-canvas {
-    max-width: 100%;
-    max-height: 280px;
-    height: auto;
-    width: auto;
-    display: block;
-}
-
-.placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    color: var(--el-text-color-secondary);
-    font-size: 13px;
-    padding: 16px;
-}
-
-.placeholder :deep(.el-icon) {
-    font-size: 24px;
-}
-
-.result-info {
-    margin-top: 10px;
-    padding: 6px 10px;
-    background-color: var(--el-fill-color-light);
-    border-radius: 4px;
-    text-align: center;
-    font-size: 13px;
-}
-
-/* 目标信息展示 */
-.target-info {
-    margin-bottom: 8px;
-    padding: 4px 8px;
-    background-color: var(--el-fill-color-lighter);
-    border-radius: 4px;
-    text-align: center;
-    font-size: 12px;
-}
-
-.target-hint {
-    margin-top: 8px;
-    text-align: center;
-    font-size: 11px;
-}
-
-.total-duration {
-    margin-top: 20px;
-    text-align: center;
-}
-
-.total-duration :deep(.el-icon) {
-    margin-right: 4px;
-}
-
 /* 响应式 */
-@media (max-width: 768px) {
+@media (max-width: 992px) {
     .results-grid {
         grid-template-columns: 1fr;
     }
-
-    .control-bar {
+    
+    .page-header {
         flex-direction: column;
-        align-items: stretch;
+        gap: 1rem;
+        align-items: flex-start;
     }
+    
+    .summary-main {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    
+    .summary-duration {
+        align-items: flex-start;
+        width: 100%;
+    }
+}
 
-    .upload-area {
-        min-width: auto;
+@media (max-width: 768px) {
+    .workflow-container {
+        padding: 0 0.75rem 1rem;
     }
 
     .action-buttons {
-        justify-content: flex-start;
-    }
-
-    .upload-drop-zone {
-        flex-wrap: wrap;
-    }
-
-    .upload-tip {
         width: 100%;
-        margin-top: 2px;
-        padding-left: 34px;
     }
-
-    .image-container {
-        height: 240px;
+    
+    .workflow-summary-card {
+        padding: 1rem;
     }
-
-    .result-image {
+    
+    .status-icon-wrapper {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .status-title {
+        font-size: 1rem;
+    }
+    
+    .progress-line {
+        width: 24px;
+    }
+    
+    .step-label {
+        font-size: 0.625rem;
+    }
+    
+    .summary-stats {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
+    .stat-divider {
+        display: none;
+    }
+    
+    .result-display-box {
+        min-height: 200px;
+    }
+    
+    .result-media {
         max-height: 240px;
     }
-
-    .result-canvas {
-        max-height: 240px;
+    
+    .step-card-header {
+        padding: 0.75rem;
+    }
+    
+    .step-number {
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+    }
+    
+    .step-name {
+        font-size: 0.875rem;
     }
 }
 </style>

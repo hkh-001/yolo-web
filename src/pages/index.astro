@@ -1,12 +1,9 @@
 ---
 import Layout from "./_layout.astro";
-import IndexMd from "./_blocks/index.md";
+import HomePage from "./_blocks/HomePage.vue";
 import "@/styles/article.css";
 ---
 
 <Layout headerActive="/" asideNav={[]}>
-    <article>
-        <IndexMd />
-    </article>
+    <HomePage client:load />
 </Layout>
-
