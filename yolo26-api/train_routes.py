@@ -200,3 +200,74 @@ async def get_status(task_id: str):
         "total_epochs": total_epochs,
         "progress": progress,
     }
+
+
+@router.get("/tensorboard/status")
+async def get_tensorboard_status():
+    """检测 TensorBoard 是否已启动"""
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex(('localhost', 6006))
+        sock.close()
+        is_running = result == 0
+        return {
+            "success": True,
+            "running": is_running,
+            "url": "http://localhost:6006" if is_running else None,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "running": False,
+            "error": str(e),
+        }
+
+
+@router.post("/tensorboard/start")
+async def start_tensorboard():
+    """启动 TensorBoard 服务（如果未运行）"""
+    # 先检查是否已运行
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)
+        result = sock.connect_ex(('localhost', 6006))
+        sock.close()
+        if result == 0:
+            return {
+                "success": True,
+                "message": "TensorBoard 已在运行",
+                "url": "http://localhost:6006",
+                "started": False,
+            }
+    except:
+        pass
+    
+    # 启动 TensorBoard
+    try:
+        log_dir = Path.home() / "ultralytics" / "runs"
+        cmd = [
+            "tensorboard",
+            "--logdir", str(log_dir),
+            "--port", "6006",
+            "--host", "0.0.0.0",
+        ]
+        subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return {
+            "success": True,
+            "message": "TensorBoard 已启动",
+            "url": "http://localhost:6006",
+            "started": True,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"启动失败: {str(e)}",
+            "started": False,
+        }

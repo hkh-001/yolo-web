@@ -25,6 +25,47 @@ const progress = ref(0);
 const currentEpoch = ref(0);
 const totalEpochs = ref(0);
 
+// TensorBoard 状态
+const tbStatus = ref<{ running: boolean; url: string | null }>({ running: false, url: null });
+const tbChecking = ref(false);
+
+// 检测 TensorBoard 状态
+async function checkTensorBoard() {
+  tbChecking.value = true;
+  try {
+    const res = await fetch(`${API_BASE}/api/train/tensorboard/status`);
+    const data = await res.json();
+    tbStatus.value = {
+      running: data.running,
+      url: data.url,
+    };
+  } catch (e) {
+    tbStatus.value = { running: false, url: null };
+  } finally {
+    tbChecking.value = false;
+  }
+}
+
+// 启动 TensorBoard
+async function startTensorBoard() {
+  try {
+    const res = await fetch(`${API_BASE}/api/train/tensorboard/start`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      ElMessage.success(data.message);
+      tbStatus.value = { running: true, url: data.url };
+      // 延迟一下再打开，确保服务已启动
+      setTimeout(() => {
+        if (data.url) window.open(data.url, '_blank');
+      }, 1500);
+    } else {
+      ElMessage.error(data.message || '启动失败');
+    }
+  } catch (e) {
+    ElMessage.error('启动 TensorBoard 失败');
+  }
+}
+
 async function startTraining() {
   try {
     isRunning.value = true;
@@ -303,6 +344,52 @@ const dataOptions = [
               <div class="progress-bar">
                 <div class="progress-fill" :style="{ width: progress + '%' }"></div>
               </div>
+            </div>
+            
+            <!-- TensorBoard 入口 -->
+            <div v-if="status === 'running' || status === 'completed'" class="tensorboard-section">
+              <!-- 检测状态按钮 -->
+              <button 
+                v-if="!tbStatus.running && !tbChecking" 
+                class="tb-check-button"
+                @click="checkTensorBoard"
+              >
+                <span class="tb-icon">🔍</span>
+                <span class="tb-text">检测 TensorBoard</span>
+              </button>
+              
+              <!-- 启动或打开按钮 -->
+              <button 
+                v-else-if="tbStatus.running" 
+                class="tb-button"
+                @click="() => tbStatus.url && window.open(tbStatus.url, '_blank')"
+              >
+                <span class="tb-icon">📊</span>
+                <span class="tb-text">打开 TensorBoard</span>
+              </button>
+              
+              <button 
+                v-else-if="tbChecking" 
+                class="tb-check-button"
+                disabled
+              >
+                <span class="tb-icon">⏳</span>
+                <span class="tb-text">检测中...</span>
+              </button>
+              
+              <!-- 未运行时显示启动按钮 -->
+              <button 
+                v-if="!tbStatus.running && !tbChecking" 
+                class="tb-start-button"
+                @click="startTensorBoard"
+              >
+                <span class="tb-icon">🚀</span>
+                <span class="tb-text">启动 TensorBoard</span>
+              </button>
+              
+              <p class="tb-hint">
+                {{ tbStatus.running ? 'TensorBoard 已运行，点击打开查看训练可视化' : '点击检测或启动 TensorBoard 服务' }}
+              </p>
             </div>
             
             <div v-if="taskId" class="task-id">
@@ -860,6 +947,90 @@ const dataOptions = [
   color: #c5cbe0;
   margin: 0 0 12px 0;
   line-height: 1.5;
+}
+
+/* ========== TensorBoard 入口 ========== */
+.tensorboard-section {
+  margin: 16px 0;
+  padding-top: 16px;
+  border-top: 1px solid #2a3142;
+}
+
+.tb-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(114, 46, 209, 0.15);
+  border: 1px solid rgba(114, 46, 209, 0.3);
+  border-radius: 8px;
+  color: #a855f7;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.tb-button:hover {
+  background: rgba(114, 46, 209, 0.25);
+  border-color: rgba(114, 46, 209, 0.5);
+}
+
+.tb-check-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(64, 158, 255, 0.15);
+  border: 1px solid rgba(64, 158, 255, 0.3);
+  border-radius: 8px;
+  color: #409eff;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tb-check-button:hover {
+  background: rgba(64, 158, 255, 0.25);
+  border-color: rgba(64, 158, 255, 0.5);
+}
+
+.tb-check-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tb-start-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(103, 194, 58, 0.15);
+  border: 1px solid rgba(103, 194, 58, 0.3);
+  border-radius: 8px;
+  color: #67c23a;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-left: 8px;
+}
+
+.tb-start-button:hover {
+  background: rgba(103, 194, 58, 0.25);
+  border-color: rgba(103, 194, 58, 0.5);
+}
+
+.tb-icon {
+  font-size: 16px;
+}
+
+.tb-hint {
+  margin: 8px 0 0 0;
+  font-size: 11px;
+  color: #5c6275;
 }
 
 /* ========== 训练进度 ========== */
