@@ -1,5 +1,6 @@
 from fastapi import FastAPI, UploadFile, File, Form, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from ultralytics import YOLO
 import numpy as np
 import cv2
@@ -10,6 +11,19 @@ import io
 import base64
 
 app = FastAPI()
+
+# CORS 配置 - 允许前端访问
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 导入训练路由
+from train_routes import router as train_router
+app.include_router(train_router)
 
 # ========== YOLO26 检测模型 ==========
 

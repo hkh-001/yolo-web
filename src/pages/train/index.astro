@@ -1,0 +1,39 @@
+---
+import Layout from "../_layout.astro";
+import TrainForm from "./_blocks/TrainForm.vue";
+import { ASIDE_NAV } from "@/constants/nav";
+---
+
+<Layout headerActive="/train" asideNav={ASIDE_NAV} asideActive="/train">
+    <div class="train-page">
+        <div class="page-header">
+            <h1 class="page-title">模型训练</h1>
+            <p class="page-subtitle">使用自定义数据集训练 YOLO 模型</p>
+        </div>
+        <TrainForm client:load />
+    </div>
+</Layout>
+
+<style>
+    .train-page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1.5rem;
+    }
+    
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    
+    .page-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.95);
+        margin-bottom: 0.5rem;
+    }
+    
+    .page-subtitle {
+        font-size: 0.95rem;
+        color: rgba(180, 190, 210, 0.7);
+    }
+</style>
