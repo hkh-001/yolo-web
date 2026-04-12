@@ -12,6 +12,7 @@ const categoryMap = {
     "video": "视频识别",
     "mask": "掩码生成",
     "enhance": "图像增强",
+    "workflow": "智能流程",
 } as const;
 
 async function updateTaskList() {

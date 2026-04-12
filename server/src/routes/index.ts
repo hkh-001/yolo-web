@@ -3,8 +3,12 @@ import { HTTPException } from 'hono/http-exception';
 import config from '@/config';
 import { sql } from '@/utils/init';
 import * as uuid from 'uuid';
+import trainRouter from './train';
 
 const router = new Hono({})
+
+// 挂载训练路由
+router.route('/api', trainRouter)
 
 router.get('/models', async (c) => {
     return Response.json(config.models.map(({ id, name }) => ({ id, name })))

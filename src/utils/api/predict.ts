@@ -1,5 +1,5 @@
 export interface PredictData {
-    source: "image" | "video"
+    source: "image" | "video" | "workflow"
     file: File
     /**
      * 用于推理的图像大小

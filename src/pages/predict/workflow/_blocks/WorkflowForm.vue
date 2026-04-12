@@ -19,6 +19,13 @@
                     <p class="page-subtitle">图像识别 → 掩码生成 → 图像增强 一站式处理</p>
                 </div>
             </div>
+            <!-- 显示当前加载的历史任务名 -->
+            <div v-if="queryTaskName" class="header-task-tag">
+                <el-tag type="info" size="large" effect="dark">
+                    <el-icon :size="14"><DocumentChecked /></el-icon>
+                    <span class="task-name">{{ queryTaskName }}</span>
+                </el-tag>
+            </div>
         </div>
 
         <!-- 顶部流程控制区 -->
@@ -126,6 +133,52 @@
                             <el-icon :size="16"><refresh /></el-icon>
                             <span>重置流程</span>
                         </el-button>
+                    </div>
+                </div>
+
+                <!-- 保存任务卡片按钮 -->
+                <div class="panel-card save-action-card" v-if="hasResult">
+                    <div class="save-action-content">
+                        <div class="save-action-icon">
+                            <el-icon :size="28"><FolderAdd /></el-icon>
+                        </div>
+                        <div class="save-action-text">
+                            <h4 class="save-action-title">保存任务</h4>
+                            <p class="save-action-desc">将当前智能流程结果保存到历史记录</p>
+                        </div>
+                    </div>
+                    <div class="save-action-form">
+                        <div class="save-input-row">
+                            <ElInput 
+                                v-model="submitTaskName" 
+                                placeholder="输入任务名称" 
+                                class="save-task-input"
+                                size="large"
+                                clearable
+                            >
+                                <template #prefix>
+                                    <el-icon><DocumentChecked /></el-icon>
+                                </template>
+                            </ElInput>
+                            <ElPopconfirm 
+                                width="280" 
+                                :title="queryTaskName ? '确定保存该任务吗？这将不会覆盖原有任务' : '确定保存该任务吗?'"
+                                :hide-icon="true" 
+                                @confirm="saveResults"
+                            >
+                                <template #reference>
+                                    <button 
+                                        class="save-submit-btn"
+                                        :class="{ loading: saveLoading, disabled: !submitTaskName }"
+                                        :disabled="!submitTaskName || saveLoading"
+                                    >
+                                        <span v-if="saveLoading" class="btn-spinner"></span>
+                                        <span v-else class="btn-icon">💾</span>
+                                        <span class="btn-text">保存</span>
+                                    </button>
+                                </template>
+                            </ElPopconfirm>
+                        </div>
                     </div>
                 </div>
 
@@ -443,7 +496,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, nextTick, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElInput, ElPopconfirm } from 'element-plus'
 import {
     UploadFilled,
     VideoPlay,
@@ -463,12 +516,22 @@ import {
     Grid,
     Cpu,
     Operation,
-    SwitchButton
+    SwitchButton,
+    FolderAdd
 } from '@element-plus/icons-vue'
 import { callModels } from '../../../../utils/api'
+import * as api from '@/utils/api'
+import type { Task } from '@/utils/api/task'
+import { Message } from '@/utils/message'
+import { setURLParams } from '@/utils/url'
 
 // 调试开关（默认隐藏）
 const showDebug = ref(false)
+
+// 任务保存状态
+const queryTaskName = ref<string>("");
+const submitTaskName = ref<string>("");
+const saveLoading = ref(false);
 
 // 步骤状态类型
 type StepStatus = 'idle' | 'running' | 'success' | 'error'
@@ -534,6 +597,12 @@ const hasAnyResult = computed(() =>
     enhanceStatus.value !== 'idle'
 )
 
+// 是否有可保存的结果（流程完成且有增强结果）
+const hasResult = computed(() => 
+    workflowStatus.value === 'completed' && 
+    enhanceImage.value !== ''
+)
+
 // ========== 调试日志 ==========
 onMounted(() => {
     console.log('[Workflow] 组件已挂载')
@@ -542,7 +611,153 @@ onMounted(() => {
         workflowStatus: workflowStatus.value,
         canStart: canStart.value
     })
+    
+    // 尝试从 URL 加载历史任务
+    loadFromTaskQuery()
 })
+
+// ========== 从历史记录加载任务 ==========
+async function loadFromTaskQuery() {
+    const task_id = new URLSearchParams(window.location.search).get("task")
+    if (!task_id) return
+    
+    console.log('[Workflow] 从 URL 加载任务:', task_id)
+    
+    const task = await api.getTask(task_id).catch((e: Error) => {
+        if (e.name === "HTTPError" && e.message.includes("status code 404")) {
+            Message.warning("未找到该任务")
+            return null
+        }
+        Message.error(`获取任务失败：${e.name}`)
+        console.error(e)
+        return null
+    })
+    
+    if (!task) return
+    
+    console.log('[Workflow] 加载到任务:', task.task_name)
+    queryTaskName.value = task.task_name
+    
+    // 阶段3将在这里补全恢复逻辑
+    // 本阶段先只加载原图和基础信息
+    
+    // 加载原图
+    const originalBlob = await api.getFile(task.input_blob).catch((e: Error) => {
+        Message.error(`获取原图失败：${e.name}`)
+        console.error(e)
+        return null
+    })
+    
+    if (originalBlob) {
+        currentFile.value = new File([originalBlob], "image.jpg", { type: originalBlob.type })
+        originalImage.value = URL.createObjectURL(originalBlob)
+        console.log('[Workflow] 原图已加载')
+    }
+    
+    // 解析并恢复结果数据
+    if (task.results) {
+        try {
+            const results = JSON.parse(task.results)
+            console.log('[Workflow] 恢复结果数据:', results)
+            
+            // 恢复流程状态
+            if (results.workflowStatus) {
+                workflowStatus.value = results.workflowStatus
+            }
+            if (results.detectStatus) {
+                detectStatus.value = results.detectStatus
+            }
+            if (results.maskStatus) {
+                maskStatus.value = results.maskStatus
+            }
+            if (results.enhanceStatus) {
+                enhanceStatus.value = results.enhanceStatus
+            }
+            
+            // 恢复耗时
+            if (results.stepDurations) {
+                stepDurations.detect = results.stepDurations.detect || 0
+                stepDurations.mask = results.stepDurations.mask || 0
+                stepDurations.enhance = results.stepDurations.enhance || 0
+            }
+            if (results.totalDuration) {
+                totalDuration.value = results.totalDuration
+            }
+            
+            // 恢复检测数量
+            if (results.detectCount !== undefined) {
+                detectCount.value = results.detectCount
+            }
+            
+            // 恢复错误信息
+            if (results.errorMessage !== undefined) {
+                errorMessage.value = results.errorMessage
+            }
+        } catch (e) {
+            console.error('[Workflow] 解析结果数据失败:', e)
+        }
+    }
+    
+    // 解析输入参数
+    if (task.input_args) {
+        try {
+            const inputArgs = JSON.parse(task.input_args)
+            console.log('[Workflow] 恢复输入参数:', inputArgs)
+            
+            // 恢复检测框数据
+            if (inputArgs.detectBboxes) {
+                detectBboxes.value = inputArgs.detectBboxes
+            }
+            
+            // 恢复掩码数据
+            if (inputArgs.maskData) {
+                maskData.value = inputArgs.maskData
+            }
+            
+            // 恢复当前步骤
+            if (inputArgs.currentStep !== undefined) {
+                currentStep.value = inputArgs.currentStep
+            }
+        } catch (e) {
+            console.error('[Workflow] 解析输入参数失败:', e)
+        }
+    }
+    
+    // 加载增强结果图
+    if (task.results_blob) {
+        const resultBlob = await api.getFile(task.results_blob).catch((e: Error) => {
+            console.error('[Workflow] 获取增强结果失败:', e)
+            return null
+        })
+        
+        if (resultBlob) {
+            enhanceImage.value = URL.createObjectURL(resultBlob)
+            console.log('[Workflow] 增强结果图已加载')
+        }
+    }
+    
+    // 如果有掩码数据，尝试恢复掩码图显示
+    // 注意：掩码图是动态生成的，这里简化处理
+    if (maskStatus.value === 'success' && detectBboxes.value.length > 0) {
+        // 阶段3再完善掩码图恢复
+        console.log('[Workflow] 掩码步骤已完成，阶段3将完善掩码图恢复')
+    }
+    
+    // 等待原图加载完成后再绘制检测框
+    if (detectStatus.value === 'success' && detectBboxes.value.length > 0 && originalImage.value) {
+        // 等待图片加载完成
+        const img = new Image()
+        img.onload = () => {
+            nextTick(() => {
+                drawDetections()
+                console.log('[Workflow] 检测框已重绘')
+            })
+        }
+        img.src = originalImage.value
+    }
+    
+    Message.success(`已加载任务: ${task.task_name}`)
+}
 
 function debugUploadAreaClick() {
     console.log('[Workflow] 点击上传区域外层容器')
@@ -882,7 +1097,7 @@ async function runMask(): Promise<boolean> {
     try {
         // 步骤 1: 获取 JSON 数据（包含 mask 原始数据）
         console.log('[Workflow] 步骤2: 开始掩码生成，获取 JSON 数据...')
-        const jsonResult = await callModels('yolo26-seg', { file: currentFile.value }, 'application/json') as any
+        const jsonResult = await callModels('yolo26-seg', { file: currentFile.value, conf: 0.5 }, 'application/json') as any
         
         // 存储 mask 数据（阶段 2A：为后续 mask 级增强做准备）
         console.log('[Workflow] ========== mask 完成 ==========')
@@ -901,7 +1116,7 @@ async function runMask(): Promise<boolean> {
         console.log('[Workflow] =================================')
         
         // 步骤 2: 获取 overlay 图片（用于显示）
-        const imageResult = await callModels('yolo26-seg', { file: currentFile.value }, 'image/jpeg')
+        const imageResult = await callModels('yolo26-seg', { file: currentFile.value, conf: 0.5 }, 'image/jpeg')
         
         if (maskImage.value) {
             URL.revokeObjectURL(maskImage.value)
@@ -1250,6 +1465,78 @@ function resetWorkflow() {
     ElMessage.info('已重置')
 }
 
+// ========== 保存任务 ==========
+async function saveResults() {
+    if (!submitTaskName.value) {
+        Message.warning("请输入任务名称")
+        return;
+    }
+    if (!currentFile.value) {
+        Message.warning("没有可保存的原图")
+        return;
+    }
+    
+    saveLoading.value = true;
+    
+    try {
+        // 上传原图
+        const originalBlob = new Blob([currentFile.value], { type: currentFile.value.type });
+        const originalId = await api.uploadFile(originalBlob).then(r => r.id);
+        
+        // 如果有增强结果，上传增强结果图
+        let resultId: string | null = null;
+        if (enhanceImage.value) {
+            // 从 URL 获取 Blob
+            try {
+                const enhanceBlob = await fetch(enhanceImage.value).then(r => r.blob());
+                resultId = await api.uploadFile(enhanceBlob).then(r => r.id);
+            } catch (e) {
+                console.error('[Workflow] 上传增强结果失败:', e);
+            }
+        }
+        
+        // 构造保存的数据
+        const uploadObject: Omit<Task, 'id' | 'timestamp' | 'task_id'> = {
+            source: "workflow",
+            task_name: submitTaskName.value,
+            input_blob: originalId,
+            input_args: JSON.stringify({
+                detectBboxes: detectBboxes.value,
+                maskData: maskData.value,
+                detectCount: detectCount.value,
+                currentStep: currentStep.value,
+            }),
+            results: JSON.stringify({
+                workflowStatus: workflowStatus.value,
+                detectStatus: detectStatus.value,
+                maskStatus: maskStatus.value,
+                enhanceStatus: enhanceStatus.value,
+                stepDurations: { ...stepDurations },
+                totalDuration: totalDuration.value,
+                detectCount: detectCount.value,
+                errorMessage: errorMessage.value,
+            }),
+            results_blob: resultId,
+        };
+        
+        const task_id = await api.saveTask(uploadObject).then(r => r.task_id).catch((e: Error) => {
+            Message.error(`保存任务失败：${e.name}`)
+            console.error(e)
+            return null
+        });
+        
+        if (task_id) {
+            setURLParams({ task: task_id }, true)
+            Message.success(`任务保存成功`)
+        }
+    } catch (e: any) {
+        console.error('[Workflow] 保存失败:', e);
+        Message.error(`保存失败: ${e.message || '未知错误'}`);
+    } finally {
+        saveLoading.value = false;
+    }
+}
+
 function getStatusText(status: StepStatus): string {
     const map: Record<StepStatus, string> = {
         idle: '待执行',
@@ -1467,6 +1754,15 @@ function getWorkflowStatusDesc(): string {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+}
+
+.header-task-tag {
+    flex-shrink: 0;
+}
+
+.header-task-tag .task-name {
+    margin-left: 0.5rem;
+    font-weight: 500;
 }
 
 .page-title {
@@ -2828,6 +3124,144 @@ function getWorkflowStatusDesc(): string {
 
 .upload-section {
     margin-bottom: 16px;
+}
+
+/* ===== 保存任务卡片按钮 ===== */
+.save-action-card {
+    background: linear-gradient(135deg, rgba(103, 194, 58, 0.08) 0%, rgba(64, 158, 255, 0.05) 100%);
+    border: 1px solid rgba(103, 194, 58, 0.25);
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+}
+
+.save-action-card:hover {
+    border-color: rgba(103, 194, 58, 0.4);
+    box-shadow: 0 4px 20px rgba(103, 194, 58, 0.15);
+}
+
+.save-action-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.save-action-icon {
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(103, 194, 58, 0.2) 0%, rgba(103, 194, 58, 0.1) 100%);
+    border: 1px solid rgba(103, 194, 58, 0.3);
+    border-radius: 12px;
+    color: #67c23a;
+    flex-shrink: 0;
+}
+
+.save-action-text {
+    flex: 1;
+}
+
+.save-action-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 0.25rem 0;
+}
+
+.save-action-desc {
+    font-size: 0.8125rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0;
+}
+
+.save-action-form {
+    padding-top: 0.75rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.save-input-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: stretch;
+}
+
+.save-task-input {
+    flex: 1;
+}
+
+.save-task-input :deep(.el-input__wrapper) {
+    padding-left: 0.75rem;
+}
+
+.save-submit-btn {
+    min-width: 100px;
+    height: 44px;
+    padding: 0 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    background: linear-gradient(180deg, #67c23a 0%, #529b2e 100%);
+    border: none;
+    border-radius: 10px;
+    box-shadow: 
+        0 4px 0 #3d7a1e,
+        0 6px 12px rgba(103, 194, 58, 0.35);
+    color: #ffffff;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    top: 0;
+}
+
+.save-submit-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #76d44a 0%, #5fad38 100%);
+    box-shadow: 
+        0 4px 0 #3d7a1e,
+        0 8px 16px rgba(103, 194, 58, 0.45);
+    transform: translateY(-1px);
+}
+
+.save-submit-btn:active:not(:disabled) {
+    top: 4px;
+    box-shadow: 
+        0 0 0 #3d7a1e,
+        0 2px 4px rgba(103, 194, 58, 0.35);
+    transform: translateY(0);
+}
+
+.save-submit-btn:disabled {
+    background: linear-gradient(180deg, rgba(103, 194, 58, 0.4) 0%, rgba(82, 155, 46, 0.4) 100%);
+    box-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.save-submit-btn .btn-icon {
+    font-size: 1rem;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+}
+
+.save-submit-btn .btn-text {
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+}
+
+.save-submit-btn .btn-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #ffffff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
 /* 控制栏：响应式 Flex */

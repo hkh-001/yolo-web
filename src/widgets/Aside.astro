@@ -2,26 +2,62 @@
 import Link from "@/components/Link.astro";
 import type { HTMLAttributes } from "astro/types";
 
+type NavItem = {
+    href: string;
+    text: string;
+};
+
 export interface Props extends HTMLAttributes<"div"> {
-    nav: readonly {
-        href: string;
-        text: string;
-    }[];
-    active?: (typeof nav)[number]["href"];
+    nav?: readonly NavItem[];
+    active?: NavItem["href"];
 }
 
-const { nav, active, ...rest } = Astro.props as Props;
+// nav 默认为空数组，防止未传值时页面崩溃
+const { nav = [], active, ...rest } = Astro.props as Props;
 ---
 
 <div
-    class:list={["px-4 py-4 h-full box-border relative", "border-r-[1px] border-solid border-(--border-color)"]}
+    class:list={[
+        "px-4 py-4 h-full box-border relative",
+        "border-r-[1px] border-solid border-(--border-color)"
+    ]}
     {...rest}
 >
     {
-        nav.map(({ href, text }) => (
-            <Link align="left" class="w-full my-2 pr-0 !box-border" href={href} active={active === href} target="_self">
+        nav.length > 0 && nav.map(({ href, text }) => (
+            <Link
+                align="left"
+                class="w-full my-2 pr-0 !box-border"
+                href={href}
+                active={active === href}
+                target="_self"
+            >
                 {text}
             </Link>
         ))
     }
+    {
+        nav.length === 0 && (
+            <div class="empty-nav">
+                <span class="empty-text">导航菜单</span>
+            </div>
+        )
+    }
 </div>
+
+<style>
+    .empty-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100px;
+        color: rgba(150, 170, 200, 0.4);
+        font-size: 0.85rem;
+    }
+    
+    .empty-text {
+        padding: 0.5rem 1rem;
+        border: 1px dashed rgba(150, 170, 200, 0.2);
+        border-radius: 6px;
+    }
+</style>

@@ -34,3 +34,34 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+# Model weights and large files
+*.pt
+*.pth
+*.onnx
+*.engine
+*.mlmodel
+*.torchscript
+*.tflite
+
+# Training data and runs
+yolo26-api/coco128/
+yolo26-api/coco128.zip
+yolo26-api/runs/
+yolo26-api/train_status/
+yolo26-api/train_tasks.json
+yolo26-api/weights/
+
+# Tensorboard and logs
+5epoch/
+tb_filtered_*/
+tb_quality/
+tb_top5/
+yesterday_50epochs_curve/
+
+# Test and temporary files
+test_train.json
+tools/*.py
+yolo26-api/test_*.py
+页面截图/
+页面截图.zip

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { ElMessage, ElSelect, ElOption, ElInput, ElInputNumber } from 'element-plus';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:5000' : '';
@@ -28,8 +28,9 @@ const totalEpochs = ref(0);
 // TensorBoard 状态
 const tbStatus = ref<{ running: boolean; url: string | null }>({ running: false, url: null });
 const tbChecking = ref(false);
+const tbAutoChecked = ref(false);
 
-// 检测 TensorBoard 状态
+// 检测 TensorBoard 状态（自动执行）
 async function checkTensorBoard() {
   tbChecking.value = true;
   try {
@@ -43,28 +44,45 @@ async function checkTensorBoard() {
     tbStatus.value = { running: false, url: null };
   } finally {
     tbChecking.value = false;
+    tbAutoChecked.value = true;
   }
 }
 
-// 启动 TensorBoard
-async function startTensorBoard() {
-  try {
-    const res = await fetch(`${API_BASE}/api/train/tensorboard/start`, { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      ElMessage.success(data.message);
-      tbStatus.value = { running: true, url: data.url };
-      // 延迟一下再打开，确保服务已启动
-      setTimeout(() => {
-        if (data.url) window.open(data.url, '_blank');
-      }, 1500);
-    } else {
-      ElMessage.error(data.message || '启动失败');
+// 智能 TensorBoard 按钮：未运行则启动，已运行则打开
+async function handleTensorBoard() {
+  if (tbStatus.value.running && tbStatus.value.url) {
+    // 已运行，直接打开
+    window.open(tbStatus.value.url, '_blank');
+  } else {
+    // 未运行，启动服务
+    tbChecking.value = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/train/tensorboard/start`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        ElMessage.success(data.message);
+        tbStatus.value = { running: true, url: data.url };
+        // 延迟一下再打开，确保服务已启动
+        setTimeout(() => {
+          if (data.url) window.open(data.url, '_blank');
+        }, 1500);
+      } else {
+        ElMessage.error(data.message || '启动失败');
+      }
+    } catch (e) {
+      ElMessage.error('启动可视化服务失败');
+    } finally {
+      tbChecking.value = false;
     }
-  } catch (e) {
-    ElMessage.error('启动 TensorBoard 失败');
   }
 }
+
+// 页面显示 TensorBoard 区域时自动检测状态
+watch(() => status.value, (newStatus) => {
+  if ((newStatus === 'running' || newStatus === 'completed') && !tbAutoChecked.value) {
+    checkTensorBoard();
+  }
+});
 
 async function startTraining() {
   try {
@@ -150,12 +168,6 @@ const dataOptions = [
 
 <template>
   <div class="train-wrapper">
-    <!-- 页面标题区 -->
-    <header class="page-header">
-      <h1 class="page-title">模型训练</h1>
-      <p class="page-subtitle">使用自定义数据集训练 YOLO 检测模型</p>
-    </header>
-
     <div class="content-grid">
       <!-- 左侧：训练配置 -->
       <section class="main-card">
@@ -346,49 +358,46 @@ const dataOptions = [
               </div>
             </div>
             
-            <!-- TensorBoard 入口 -->
+            <!-- 训练可视化入口 -->
             <div v-if="status === 'running' || status === 'completed'" class="tensorboard-section">
-              <!-- 检测状态按钮 -->
-              <button 
-                v-if="!tbStatus.running && !tbChecking" 
-                class="tb-check-button"
-                @click="checkTensorBoard"
-              >
-                <span class="tb-icon">🔍</span>
-                <span class="tb-text">检测 TensorBoard</span>
-              </button>
+              <h4 class="tb-section-title">
+                {{ status === 'running' ? '📈 训练实时可视化' : '📊 训练结果分析' }}
+              </h4>
+              <p class="tb-desc">
+                查看训练曲线与核心指标变化，包括 mAP、Precision、Recall、Loss 等
+              </p>
               
-              <!-- 启动或打开按钮 -->
-              <button 
-                v-else-if="tbStatus.running" 
-                class="tb-button"
-                @click="() => tbStatus.url && window.open(tbStatus.url, '_blank')"
-              >
-                <span class="tb-icon">📊</span>
-                <span class="tb-text">打开 TensorBoard</span>
-              </button>
-              
-              <button 
-                v-else-if="tbChecking" 
-                class="tb-check-button"
-                disabled
-              >
-                <span class="tb-icon">⏳</span>
-                <span class="tb-text">检测中...</span>
-              </button>
-              
-              <!-- 未运行时显示启动按钮 -->
-              <button 
-                v-if="!tbStatus.running && !tbChecking" 
-                class="tb-start-button"
-                @click="startTensorBoard"
-              >
-                <span class="tb-icon">🚀</span>
-                <span class="tb-text">启动 TensorBoard</span>
-              </button>
+              <div class="tb-actions">
+                <!-- 智能按钮：未运行则启动，已运行则打开 -->
+                <button 
+                  v-if="!tbChecking" 
+                  class="tb-button"
+                  :class="{ 'tb-button-ready': tbStatus.running }"
+                  @click="handleTensorBoard"
+                >
+                  <span class="tb-icon">{{ tbStatus.running ? '📊' : '🚀' }}</span>
+                  <span class="tb-text">
+                    {{ tbStatus.running 
+                      ? (status === 'running' ? '打开实时训练曲线' : '打开训练结果详情') 
+                      : '启动可视化服务' }}
+                  </span>
+                </button>
+                
+                <!-- 检测中 -->
+                <button 
+                  v-else 
+                  class="tb-check-button"
+                  disabled
+                >
+                  <span class="tb-icon">⏳</span>
+                  <span class="tb-text">正在检测服务状态...</span>
+                </button>
+              </div>
               
               <p class="tb-hint">
-                {{ tbStatus.running ? 'TensorBoard 已运行，点击打开查看训练可视化' : '点击检测或启动 TensorBoard 服务' }}
+                <span v-if="tbStatus.running">✅ 可视化服务已就绪，点击上方按钮查看训练曲线与指标</span>
+                <span v-else-if="tbAutoChecked">💡 服务未启动，点击上方按钮自动启动并打开</span>
+                <span v-else>⏳ 正在检测可视化服务状态...</span>
               </p>
             </div>
             
@@ -426,32 +435,13 @@ const dataOptions = [
 .train-wrapper {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 32px 24px;
-}
-
-.page-header {
-  margin-bottom: 32px;
-  text-align: center;
-}
-
-.page-title {
-  font-size: 32px;
-  font-weight: 700;
-  color: #ffffff;
-  margin: 0 0 8px 0;
-  letter-spacing: -0.5px;
-}
-
-.page-subtitle {
-  font-size: 15px;
-  color: #8b92a8;
-  margin: 0;
+  padding: 24px;
 }
 
 .content-grid {
   display: grid;
-  grid-template-columns: 1fr 360px;
-  gap: 24px;
+  grid-template-columns: 1fr 320px;
+  gap: 20px;
   align-items: start;
 }
 
@@ -463,54 +453,55 @@ const dataOptions = [
 
 /* ========== 主卡片 ========== */
 .main-card {
-  background: #1a1f2e;
-  border: 1px solid #2a3142;
-  border-radius: 16px;
+  background: #1e2333;
+  border: 1px solid #2d3548;
+  border-radius: 12px;
   overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #242b3d 0%, #1e2333 100%);
-  border-bottom: 1px solid #2a3142;
+  gap: 10px;
+  padding: 16px 20px;
+  background: #252b3d;
+  border-bottom: 1px solid #2d3548;
 }
 
 .header-icon {
-  font-size: 20px;
-  width: 36px;
-  height: 36px;
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(64, 158, 255, 0.15);
-  border-radius: 10px;
+  background: rgba(64, 158, 255, 0.12);
+  border-radius: 8px;
 }
 
 .header-title {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
-  color: #ffffff;
+  color: #e8eaf0;
   margin: 0;
 }
 
 .card-body {
-  padding: 24px;
+  padding: 20px;
 }
 
 .card-footer {
-  padding: 20px 24px;
-  background: #151922;
-  border-top: 1px solid #2a3142;
+  padding: 16px 20px;
+  background: #181c29;
+  border-top: 1px solid #2d3548;
   display: flex;
   justify-content: center;
 }
 
 /* ========== 表单分区 ========== */
 .form-section {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .form-section:last-child {
@@ -518,25 +509,25 @@ const dataOptions = [
 }
 
 .section-title {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  color: #8b92a8;
+  color: #7a839c;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin: 0 0 16px 0;
+  margin: 0 0 12px 0;
 }
 
 .divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, #2a3142, transparent);
-  margin: 24px 0;
+  background: #2d3548;
+  margin: 20px 0;
 }
 
 .form-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 14px;
 }
 
 .form-row:last-child {
@@ -553,7 +544,7 @@ const dataOptions = [
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .form-field.full-width {
@@ -561,9 +552,9 @@ const dataOptions = [
 }
 
 .field-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #c5cbe0;
+  color: #a0a8c0;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -574,8 +565,8 @@ const dataOptions = [
 }
 
 .field-hint {
-  font-size: 12px;
-  color: #5c6275;
+  font-size: 11px;
+  color: #6b7280;
   margin-top: 2px;
 }
 
@@ -585,50 +576,31 @@ const dataOptions = [
 }
 
 :deep(.field-select .el-input__wrapper) {
-  background: #0d1117;
-  border: 1px solid #30363d;
+  background: #151922;
+  border: 1px solid #2d3548;
   border-radius: 8px;
   box-shadow: none !important;
-  padding: 10px 14px;
+  padding: 9px 12px;
+  height: 40px;
   transition: all 0.2s;
-  cursor: pointer;
 }
 
 :deep(.field-select .el-input__wrapper:hover) {
   border-color: #409eff;
-  background: #141820;
 }
 
 :deep(.field-select .el-input__wrapper.is-focus) {
   border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.2) !important;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.15) !important;
 }
 
 :deep(.field-select .el-input__inner) {
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
+  color: #e8eaf0;
+  font-size: 13px;
 }
 
 :deep(.field-select .el-input__inner::placeholder) {
   color: #5c6275;
-}
-
-/* 下拉箭头 */
-:deep(.field-select .el-select__caret) {
-  color: #8b92a8;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-:deep(.field-select .el-input__wrapper:hover .el-select__caret) {
-  color: #409eff;
-}
-
-/* 选中值的样式 */
-:deep(.field-select .el-input__prefix) {
-  color: #409eff;
 }
 
 :deep(.field-number) {
@@ -636,57 +608,59 @@ const dataOptions = [
 }
 
 :deep(.field-number .el-input__wrapper) {
-  background: #0d1117;
-  border: 1px solid #30363d;
+  background: #151922;
+  border: 1px solid #2d3548;
   border-radius: 8px;
   box-shadow: none !important;
+  height: 40px;
 }
 
 :deep(.field-number .el-input__inner) {
-  color: #ffffff;
-  text-align: left;
-  padding-left: 12px;
+  color: #e8eaf0;
+  font-size: 13px;
 }
 
 :deep(.field-input .el-input__wrapper) {
-  background: #0d1117;
-  border: 1px solid #30363d;
+  background: #151922;
+  border: 1px solid #2d3548;
   border-radius: 8px;
   box-shadow: none !important;
+  height: 40px;
 }
 
 :deep(.field-input .el-input__inner) {
-  color: #ffffff;
+  color: #e8eaf0;
+  font-size: 13px;
 }
 
 /* ========== 下拉选项样式 ========== */
 .select-option {
   display: flex;
   flex-direction: column;
-  padding: 4px 0;
+  padding: 3px 0;
 }
 
 .option-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #ffffff;
+  color: #e8eaf0;
 }
 
 .option-desc {
-  font-size: 12px;
-  color: #8b92a8;
+  font-size: 11px;
+  color: #7a839c;
   margin-top: 2px;
 }
 
 :deep(.train-select-dropdown) {
-  background: #1a1f2e !important;
-  border: 1px solid #2a3142 !important;
+  background: #1e2333 !important;
+  border: 1px solid #2d3548 !important;
   border-radius: 8px !important;
 }
 
 :deep(.train-select-dropdown .el-select-dropdown__item) {
-  padding: 12px 16px;
-  border-bottom: 1px solid #242b3d;
+  padding: 10px 14px;
+  border-bottom: 1px solid #252b3d;
 }
 
 :deep(.train-select-dropdown .el-select-dropdown__item:last-child) {
@@ -694,17 +668,17 @@ const dataOptions = [
 }
 
 :deep(.train-select-dropdown .el-select-dropdown__item:hover) {
-  background: #242b3d;
+  background: #252b3d;
 }
 
 :deep(.train-select-dropdown .el-select-dropdown__item.selected) {
-  background: rgba(64, 158, 255, 0.15);
+  background: rgba(64, 158, 255, 0.1);
 }
 
 /* ========== 设备选择 ========== */
 .device-options {
   display: flex;
-  gap: 12px;
+  gap: 10px;
 }
 
 .device-option {
@@ -712,11 +686,11 @@ const dataOptions = [
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 16px;
-  background: #0d1117;
-  border: 2px solid #30363d;
-  border-radius: 10px;
+  gap: 6px;
+  padding: 12px;
+  background: #151922;
+  border: 1px solid #2d3548;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -727,7 +701,7 @@ const dataOptions = [
 
 .device-option.active {
   border-color: #409eff;
-  background: rgba(64, 158, 255, 0.1);
+  background: rgba(64, 158, 255, 0.08);
 }
 
 .device-option input {
@@ -735,13 +709,13 @@ const dataOptions = [
 }
 
 .device-icon {
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .device-name {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #c5cbe0;
+  color: #a0a8c0;
 }
 
 /* ========== AMP 选项 ========== */
@@ -757,11 +731,11 @@ const dataOptions = [
 .amp-box {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 20px;
-  background: #0d1117;
-  border: 2px solid #30363d;
-  border-radius: 10px;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #151922;
+  border: 1px solid #2d3548;
+  border-radius: 8px;
   width: 100%;
   transition: all 0.2s;
 }
@@ -772,18 +746,18 @@ const dataOptions = [
 
 .amp-checkbox:checked + .amp-box {
   border-color: #409eff;
-  background: rgba(64, 158, 255, 0.1);
+  background: rgba(64, 158, 255, 0.08);
 }
 
 .amp-icon {
-  font-size: 24px;
-  width: 40px;
-  height: 40px;
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(64, 158, 255, 0.15);
-  border-radius: 10px;
+  background: rgba(64, 158, 255, 0.12);
+  border-radius: 8px;
 }
 
 .amp-text {
@@ -793,14 +767,14 @@ const dataOptions = [
 }
 
 .amp-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #ffffff;
+  color: #e8eaf0;
 }
 
 .amp-desc {
-  font-size: 12px;
-  color: #8b92a8;
+  font-size: 11px;
+  color: #7a839c;
 }
 
 /* ========== 训练按钮 ========== */
@@ -808,33 +782,33 @@ const dataOptions = [
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-width: 200px;
-  padding: 14px 32px;
-  background: linear-gradient(135deg, #409eff 0%, #2b7fd1 100%);
+  gap: 8px;
+  min-width: 180px;
+  padding: 12px 28px;
+  background: #409eff;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   color: #ffffff;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 4px 14px rgba(64, 158, 255, 0.3);
 }
 
 .train-button:hover:not(:disabled) {
+  background: #5cadff;
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4);
 }
 
 .train-button:disabled {
-  opacity: 0.7;
+  background: #2a5a8c;
   cursor: not-allowed;
+  opacity: 0.8;
 }
 
 .btn-spinner {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.3);
   border-top-color: #ffffff;
   border-radius: 50%;
@@ -849,49 +823,46 @@ const dataOptions = [
 .side-panel {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 /* ========== 状态卡片 ========== */
 .status-card {
-  background: #1a1f2e;
-  border: 1px solid #2a3142;
-  border-radius: 16px;
-  padding: 20px;
-  transition: all 0.3s;
+  background: #1e2333;
+  border: 1px solid #2d3548;
+  border-radius: 12px;
+  padding: 16px 20px;
+  transition: all 0.2s;
 }
 
 .status-card.running {
-  border-color: #e6a23c;
-  box-shadow: 0 0 0 1px rgba(230, 162, 60, 0.3);
+  border-color: #d4a03a;
 }
 
 .status-card.completed {
-  border-color: #67c23a;
-  box-shadow: 0 0 0 1px rgba(103, 194, 58, 0.3);
+  border-color: #5cb85c;
 }
 
 .status-card.error {
-  border-color: #f56c6c;
-  box-shadow: 0 0 0 1px rgba(245, 108, 108, 0.3);
+  border-color: #d9534f;
 }
 
 .status-header {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
 .status-icon {
-  font-size: 28px;
-  width: 48px;
-  height: 48px;
+  font-size: 24px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #242b3d;
-  border-radius: 12px;
+  background: #252b3d;
+  border-radius: 10px;
 }
 
 .status-info {
@@ -901,92 +872,102 @@ const dataOptions = [
 }
 
 .status-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
-  color: #8b92a8;
+  color: #7a839c;
   margin: 0;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
   width: fit-content;
 }
 
 .status-badge.idle {
-  background: rgba(144, 147, 153, 0.15);
-  color: #909399;
+  background: rgba(160, 168, 192, 0.1);
+  color: #a0a8c0;
 }
 
 .status-badge.running {
-  background: rgba(230, 162, 60, 0.15);
-  color: #e6a23c;
+  background: rgba(212, 160, 58, 0.12);
+  color: #d4a03a;
 }
 
 .status-badge.completed {
-  background: rgba(103, 194, 58, 0.15);
-  color: #67c23a;
+  background: rgba(92, 184, 92, 0.12);
+  color: #5cb85c;
 }
 
 .status-badge.error {
-  background: rgba(245, 108, 108, 0.15);
-  color: #f56c6c;
+  background: rgba(217, 83, 79, 0.12);
+  color: #d9534f;
 }
 
 .status-body {
-  padding-top: 16px;
-  border-top: 1px solid #2a3142;
+  padding-top: 14px;
+  border-top: 1px solid #2d3548;
 }
 
 .status-message {
-  font-size: 14px;
-  color: #c5cbe0;
+  font-size: 13px;
+  color: #a0a8c0;
   margin: 0 0 12px 0;
   line-height: 1.5;
 }
 
 /* ========== TensorBoard 入口 ========== */
 .tensorboard-section {
-  margin: 16px 0;
-  padding-top: 16px;
-  border-top: 1px solid #2a3142;
+  margin: 14px 0;
+  padding-top: 14px;
+  border-top: 1px solid #2d3548;
 }
 
 .tb-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: rgba(114, 46, 209, 0.15);
-  border: 1px solid rgba(114, 46, 209, 0.3);
-  border-radius: 8px;
-  color: #a855f7;
-  font-size: 14px;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(64, 158, 255, 0.1);
+  border: 1px solid rgba(64, 158, 255, 0.25);
+  border-radius: 6px;
+  color: #409eff;
+  font-size: 12px;
   font-weight: 500;
-  text-decoration: none;
-  transition: all 0.2s;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .tb-button:hover {
-  background: rgba(114, 46, 209, 0.25);
-  border-color: rgba(114, 46, 209, 0.5);
+  background: rgba(64, 158, 255, 0.18);
+  border-color: rgba(64, 158, 255, 0.4);
+}
+
+.tb-button-ready {
+  background: rgba(92, 184, 92, 0.1);
+  border-color: rgba(92, 184, 92, 0.25);
+  color: #5cb85c;
+}
+
+.tb-button-ready:hover {
+  background: rgba(92, 184, 92, 0.18);
+  border-color: rgba(92, 184, 92, 0.4);
 }
 
 .tb-check-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: rgba(64, 158, 255, 0.15);
-  border: 1px solid rgba(64, 158, 255, 0.3);
-  border-radius: 8px;
-  color: #409eff;
-  font-size: 14px;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(160, 168, 192, 0.08);
+  border: 1px solid rgba(160, 168, 192, 0.2);
+  border-radius: 6px;
+  color: #a0a8c0;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -1030,117 +1011,133 @@ const dataOptions = [
 .tb-hint {
   margin: 8px 0 0 0;
   font-size: 11px;
-  color: #5c6275;
+  color: #6b7280;
+}
+
+.tb-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8eaf0;
+  margin: 0 0 6px 0;
+}
+
+.tb-desc {
+  font-size: 11px;
+  color: #7a839c;
+  margin: 0 0 10px 0;
+  line-height: 1.5;
+}
+
+.tb-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ========== 训练进度 ========== */
 .progress-section {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .progress-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .progress-epoch {
-  font-size: 13px;
-  color: #8b92a8;
-  font-weight: 500;
+  font-size: 12px;
+  color: #7a839c;
 }
 
 .progress-percent {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #409eff;
 }
 
 .progress-bar {
-  height: 8px;
-  background: #0d1117;
-  border-radius: 4px;
+  height: 6px;
+  background: #252b3d;
+  border-radius: 3px;
   overflow: hidden;
-  border: 1px solid #30363d;
 }
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #409eff, #2b7fd1);
-  border-radius: 4px;
+  background: #409eff;
+  border-radius: 3px;
   transition: width 0.3s ease;
 }
 
 .task-id {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #2d3548;
 }
 
 .id-label {
   font-size: 11px;
-  color: #5c6275;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: #6b7280;
 }
 
 .id-value {
   font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 12px;
-  color: #8b92a8;
-  background: #0d1117;
-  padding: 6px 10px;
-  border-radius: 6px;
-  border: 1px solid #30363d;
+  font-size: 11px;
+  color: #7a839c;
+  background: transparent;
 }
 
 .status-footer {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #2a3142;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #2d3548;
 }
 
 .success-notice {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  background: rgba(103, 194, 58, 0.1);
-  border-radius: 8px;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(92, 184, 92, 0.08);
+  border-radius: 6px;
 }
 
 .notice-icon {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .notice-text {
-  font-size: 13px;
-  color: #67c23a;
+  font-size: 12px;
+  color: #5cb85c;
   font-weight: 500;
 }
 
 /* ========== 提示卡片 ========== */
 .tips-card {
-  background: #1a1f2e;
-  border: 1px solid #2a3142;
-  border-radius: 16px;
-  padding: 20px;
+  background: #1e2333;
+  border: 1px solid #2d3548;
+  border-radius: 12px;
+  padding: 16px 20px;
 }
 
 .tips-title {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
-  margin: 0 0 12px 0;
+  color: #a0a8c0;
+  margin: 0 0 10px 0;
 }
 
 .tips-list {
   margin: 0;
-  padding-left: 18px;
-  font-size: 13px;
-  color: #8b92a8;
-  line-height: 1.8;
+  padding-left: 16px;
+  font-size: 12px;
+  color: #7a839c;
+  line-height: 1.7;
 }
 
 .tips-list li {

@@ -23,7 +23,22 @@ export default defineConfig({
     }],
     server: {
       watch: {
-        ignored: ['server/**/*']
+        ignored: [
+          'server/**/*',
+          '**/runs/**',
+          '**/train_status/**',
+          '**/train_tasks.json',
+          '**/*.pt',
+          '**/*.pth',
+          '**/*.ckpt',
+          '**/*.log',
+          '**/results.csv',
+          '**/results.png',
+          '**/args.yaml',
+          '**/confusion_matrix.png',
+          '**/F1_curve.png',
+          '**/PR_curve.png',
+        ]
       },
       proxy: {
         '/api': {

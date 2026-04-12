@@ -506,18 +506,18 @@ function openGithub() {
 /* ========== 首页整体容器 ========== */
 .home-page {
     width: 100%;
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
-    padding: 0 1.5rem 3rem;
+    padding: 0 2rem 3rem;
 }
 
 /* ========== 通用 Section 样式 ========== */
-/* 统一区块间距节奏：Hero 最重，其余依次递减 */
+/* 统一区块间距节奏：体量再平衡 - 进一步收紧让页面更铺满 */
 section {
-    margin-bottom: 3.5rem;
+    margin-bottom: 2rem;
 }
 
-/* 统一标题区域样式 */
+/* 统一标题区域样式 - 体量再平衡 */
 .section-header {
     text-align: center;
     margin-bottom: 2rem;
@@ -555,12 +555,12 @@ section {
     color: rgba(103, 194, 58, 0.9);
 }
 
-/* 统一标题层级 */
+/* 统一标题层级 - 密度优化：标题更大更有存在感 */
 .section-title {
-    font-size: 1.625rem;
+    font-size: 1.875rem;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.92);
-    margin: 0 0 0.5rem;
+    margin: 0 0 0.625rem;
     letter-spacing: -0.01em;
 }
 
@@ -577,9 +577,9 @@ section {
     grid-template-columns: 1.1fr 0.9fr;
     gap: 4rem;
     align-items: center;
-    min-height: 520px;
-    padding: 3rem 0 4rem;
-    margin-bottom: 3.5rem;
+    min-height: 580px;
+    padding: 3.5rem 0 4.5rem;
+    margin-bottom: 3rem;
     overflow: hidden;
 }
 
@@ -630,7 +630,7 @@ section {
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 1.75rem;
+    gap: 2rem;
 }
 
 /* 徽章优化 */
@@ -650,8 +650,8 @@ section {
 }
 
 .badge-icon {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -664,7 +664,7 @@ section {
 }
 
 .hero-badge span {
-    font-size: 0.8125rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
     letter-spacing: 0.5px;
@@ -680,10 +680,10 @@ section {
 
 .title-line {
     display: block;
-    font-size: 3.25rem;
+    font-size: 3.75rem;
     font-weight: 800;
     color: rgba(255, 255, 255, 0.95);
-    line-height: 1.15;
+    line-height: 1.1;
     letter-spacing: -0.02em;
 }
 
@@ -696,17 +696,17 @@ section {
 }
 
 .title-secondary {
-    font-size: 1.5rem;
+    font-size: 1.625rem;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.6);
 }
 
 .hero-subtitle {
-    font-size: 1.0625rem;
+    font-size: 1.125rem;
     color: rgba(255, 255, 255, 0.5);
     margin: 0;
     line-height: 1.7;
-    max-width: 520px;
+    max-width: 560px;
 }
 
 /* CTA 按钮区优化 */
@@ -720,10 +720,10 @@ section {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.625rem;
-    height: 52px;
-    padding: 0 1.75rem;
-    font-size: 1rem;
+    gap: 0.75rem;
+    height: 56px;
+    padding: 0 2rem;
+    font-size: 1.0625rem;
     font-weight: 600;
     border: none;
     border-radius: 12px;
@@ -798,9 +798,9 @@ section {
 .hero-stats {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    margin-top: 1rem;
-    padding-top: 1.5rem;
+    gap: 2rem;
+    margin-top: 1.25rem;
+    padding-top: 1.75rem;
     border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -811,20 +811,20 @@ section {
 }
 
 .stat-value {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: rgba(255, 255, 255, 0.9);
 }
 
 .stat-label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.4);
     letter-spacing: 0.5px;
 }
 
 .stat-divider {
     width: 1px;
-    height: 32px;
+    height: 40px;
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -832,7 +832,7 @@ section {
 .hero-visual {
     position: relative;
     z-index: 1;
-    height: 420px;
+    height: 480px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -840,8 +840,8 @@ section {
 
 .visual-container {
     position: relative;
-    width: 360px;
-    height: 360px;
+    width: 420px;
+    height: 420px;
 }
 
 /* 中心核心节点 */
@@ -850,8 +850,8 @@ section {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 100px;
-    height: 100px;
+    width: 120px;
+    height: 120px;
 }
 
 .core-ring {
@@ -883,8 +883,8 @@ section {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -912,8 +912,8 @@ section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.375rem;
-    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
     background: rgba(30, 35, 45, 0.8);
     border: 1px solid rgba(64, 158, 255, 0.2);
     border-radius: 12px;
@@ -928,8 +928,8 @@ section {
 }
 
 .orbit-node .node-icon {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -942,7 +942,7 @@ section {
 }
 
 .orbit-node span {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.6);
 }
@@ -996,27 +996,29 @@ section {
 }
 
 /* ========== 核心功能入口区 ========== */
-/* 核心功能入口区 - 保持主视觉地位 */
+/* 核心功能入口区 - 体量再平衡 */
 .features-section {
-    margin-bottom: 4rem;
+    margin-bottom: 2.5rem;
 }
 
-/* 桌面端：5张卡片一行 */
+/* 桌面端：5张卡片一行 - 密度优化：增大间距让卡片更有存在感 */
 .features-grid {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 0.875rem;
+    gap: 1.25rem;
 }
 
-/* 功能卡片 - 5列布局适配 */
+/* 功能卡片 - 5列布局适配 - 体量再平衡：进一步增大卡片 */
 .feature-card {
     position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 0.75rem;
-    padding: 1.25rem 0.75rem;
+    gap: 1.125rem;
+    padding: 2.25rem 1.5rem;
+    min-height: 280px;
+    border-radius: 18px;
     background: rgba(30, 30, 40, 0.4);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 14px;
@@ -1106,11 +1108,11 @@ section {
         0 4px 16px rgba(103, 194, 58, 0.08);
 }
 
-/* 图标容器 - 与功能页头部对齐，突出图标本体 */
+/* 图标容器 - 体量再平衡：进一步增大 */
 .feature-icon-wrapper {
     position: relative;
-    width: 48px;
-    height: 48px;
+    width: 64px;
+    height: 64px;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -1198,18 +1200,19 @@ section {
 }
 
 .feature-title {
-    font-size: 0.9375rem;
+    font-size: 1.125rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.95);
-    margin: 0 0 0.25rem;
+    margin: 0 0 0.625rem;
     letter-spacing: -0.01em;
     white-space: nowrap;
 }
 
 .feature-desc {
-    font-size: 0.6875rem;
+    font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.45);
-    margin: 0 0 0.625rem;
+    margin: 0 0 1.125rem;
+    line-height: 1.55;
     line-height: 1.4;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -1230,7 +1233,7 @@ section {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.25rem;
+    gap: 0.625rem;
 }
 
 .feature-tag {
@@ -1293,8 +1296,8 @@ section {
 .feature-tag {
     display: inline-flex;
     align-items: center;
-    padding: 0.125rem 0.375rem;
-    font-size: 0.625rem;
+    padding: 0.3125rem 0.625rem;
+    font-size: 0.75rem;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.55);
     background: rgba(64, 158, 255, 0.08);
@@ -1357,10 +1360,12 @@ section {
     gap: 1rem;
 }
 
-/* 能力卡片 - 统一边框透明度 0.05，更收敛 */
+/* 能力卡片 - 体量再平衡：进一步增大卡片 */
 .capability-card {
     position: relative;
-    padding: 1.25rem;
+    padding: 2.25rem;
+    min-height: 240px;
+    border-radius: 18px;
     background: rgba(30, 30, 40, 0.35);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
@@ -1431,14 +1436,14 @@ section {
     background: radial-gradient(ellipse at 50% 0%, rgba(103, 194, 58, 0.06) 0%, transparent 50%);
 }
 
-/* 顶部区域：连续编号 01-04 */
+/* 顶部区域：连续编号 01-04 - 体量再平衡 */
 .capability-header {
     position: relative;
-    margin-bottom: 0.875rem;
+    margin-bottom: 1.125rem;
     z-index: 1;
 }
 
-/* 数字展示 - 强化视觉层级 */
+/* 数字展示 - 强化视觉层级 - 密度优化：编号更大更有存在感 */
 .capability-number {
     position: relative;
     display: inline-block;
@@ -1449,7 +1454,7 @@ section {
     position: relative;
     z-index: 2;
     display: inline-block;
-    font-size: 2.25rem;
+    font-size: 3rem;
     font-weight: 800;
     line-height: 1;
     /* 删除：background-clip: text 渐变文字方案 */
@@ -1480,20 +1485,20 @@ section {
 /* 能力标签 - 醒目但克制 */
 .capability-label {
     position: relative;
-    font-size: 1rem;
+    font-size: 1.1875rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.92);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.875rem;
     z-index: 1;
 }
 
 /* 说明文字 */
 .capability-desc {
     position: relative;
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
     color: rgba(255, 255, 255, 0.45);
     margin: 0;
-    line-height: 1.55;
+    line-height: 1.7;
     z-index: 1;
 }
 
@@ -1519,16 +1524,16 @@ section {
     }
 }
 
-/* ========== 智能流程亮点区 ========== */
+/* ========== 智能流程亮点区 ========== 体量再平衡：缩小高度让页面更紧凑 */
 .workflow-highlight-section {
     position: relative;
-    padding: 2.5rem 0;
+    padding: 2rem 0;
     background: 
         linear-gradient(135deg, rgba(64, 158, 255, 0.03) 0%, rgba(103, 194, 58, 0.02) 100%),
         rgba(25, 28, 38, 0.4);
     border: 1px solid rgba(64, 158, 255, 0.1);
     border-radius: 20px;
-    margin-bottom: 2.5rem;
+    margin-bottom: 2rem;
     overflow: hidden;
 }
 
@@ -1542,14 +1547,14 @@ section {
         radial-gradient(ellipse at 80% 100%, rgba(103, 194, 58, 0.04) 0%, transparent 40%);
 }
 
-/* 流程链容器 */
+/* 流程链容器 - 体量再平衡：缩小内边距让卡片更紧凑 */
 .workflow-chain {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0;
-    padding: 2rem;
+    padding: 1.5rem 2rem;
     flex-wrap: wrap;
 }
 
@@ -1625,7 +1630,7 @@ section {
     background: radial-gradient(ellipse at 50% 0%, rgba(103, 194, 58, 0.15) 0%, transparent 60%);
 }
 
-/* 步骤指示器（数字 + 状态环） */
+/* 步骤指示器（数字 + 状态环） - 体量再平衡 */
 .step-indicator {
     position: relative;
     display: flex;
@@ -1690,7 +1695,7 @@ section {
     box-shadow: 0 0 12px rgba(103, 194, 58, 0.5);
 }
 
-/* 图标容器 */
+/* 图标容器 - 体量再平衡 */
 .step-icon-wrap {
     position: relative;
     display: flex;
@@ -1698,6 +1703,7 @@ section {
     justify-content: center;
     width: 44px;
     height: 44px;
+    border-radius: 12px;
     background: linear-gradient(135deg, rgba(64, 158, 255, 0.1) 0%, rgba(22, 119, 255, 0.08) 100%);
     border: 1px solid rgba(64, 158, 255, 0.15);
     border-radius: 12px;
@@ -1892,17 +1898,19 @@ section {
 .quick-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+    gap: 1.25rem;
 }
 
-/* 快捷卡片 - 更轻量，不抢眼 */
+/* 快捷卡片 - 体量再平衡：适度增大让底部更有存在感 */
 .quick-card {
     position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
+    gap: 1.5rem;
+    padding: 1.75rem 2.25rem;
+    min-height: 130px;
+    border-radius: 18px;
     background: rgba(30, 30, 40, 0.25);
     border-radius: 12px;
     cursor: pointer;
@@ -1951,11 +1959,11 @@ section {
     z-index: 1;
 }
 
-/* 图标容器 - 更克制 */
+/* 图标容器 - 体量再平衡 */
 .quick-icon {
     position: relative;
-    width: 44px;
-    height: 44px;
+    width: 56px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1968,7 +1976,7 @@ section {
     inset: 0;
     background: linear-gradient(135deg, rgba(64, 158, 255, 0.08) 0%, rgba(22, 119, 255, 0.05) 100%);
     border: 1px solid rgba(64, 158, 255, 0.12);
-    border-radius: 11px;
+    border-radius: 13px;
     transition: all 0.3s ease;
 }
 
@@ -2036,7 +2044,7 @@ section {
 }
 
 .quick-content h3 {
-    font-size: 1rem;
+    font-size: 1.1875rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.9);
     margin: 0;
@@ -2062,10 +2070,10 @@ section {
 }
 
 .quick-content p {
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
     color: rgba(255, 255, 255, 0.45);
     margin: 0;
-    line-height: 1.5;
+    line-height: 1.6;
 }
 
 /* 快捷操作区 */
